@@ -1,0 +1,6 @@
+# runtime data
+/data/*
+!/data/.gitkeep
+
+# app config (local only)
+services/tgbot/config/config.yaml
