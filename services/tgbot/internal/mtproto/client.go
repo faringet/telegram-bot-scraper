@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	cfg "github.com/faringet/telegram-bot-scraper/pkg/config"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
-	"github.com/gotd/td/tg"
-
-	cfg "github.com/faringet/telegram-bot-scraper/pkg/config"
 )
 
 // Client — транспорт + lifecycle MTProto.
@@ -48,7 +46,8 @@ func New(c cfg.MTProto, logg *slog.Logger) (*Client, error) {
 
 // Run поднимает соединение, гарантирует авторизацию и передает tg.Client в fn.
 // Завершается по ctx.Done().
-func (c *Client) Run(ctx context.Context, fn func(ctx context.Context, api *tg.Client) error) error {
+
+func (c *Client) WithClient(ctx context.Context, fn func(ctx context.Context, td *telegram.Client) error) error {
 	if c == nil || c.td == nil {
 		return errors.New("mtproto: client is nil")
 	}
@@ -57,11 +56,10 @@ func (c *Client) Run(ctx context.Context, fn func(ctx context.Context, api *tg.C
 	}
 
 	return c.td.Run(ctx, func(ctx context.Context) error {
-		// Авторизация вынесена в auth.go
 		if err := authorizeIfNeeded(ctx, c.td, c.cfg, c.log); err != nil {
 			return err
 		}
-		return fn(ctx, tg.NewClient(c.td))
+		return fn(ctx, c.td)
 	})
 }
 

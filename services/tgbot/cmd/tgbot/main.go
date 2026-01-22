@@ -10,9 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/faringet/telegram-bot-scraper/pkg/logger"
 	tgbotcfg "github.com/faringet/telegram-bot-scraper/services/tgbot/config"
 	"github.com/faringet/telegram-bot-scraper/services/tgbot/internal/app"
+
+	pkglogger "github.com/faringet/telegram-bot-scraper/pkg/logger"
 )
 
 func main() {
@@ -22,9 +23,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Config + Logger
+	// Config
 	cfg := tgbotcfg.New()
-	log := logger.NewLogger(cfg.Logger)
+
+	// Logger (из общего блока cfg.Logger)
+	log := pkglogger.NewLogger(cfg.Logger)
 	slog.SetDefault(log)
 
 	log.Info("starting",

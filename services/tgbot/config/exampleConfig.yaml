@@ -1,0 +1,43 @@
+app_name: telegram-bot-scraper
+env: dev
+
+logger:
+  level: info          # debug | info | warn | error
+  json: false
+  app_name: telegram-bot-scraper
+
+mode:
+  kind: mtproto        # mtproto | botapi
+
+mtproto:
+  api_id: 12345678
+  api_hash: ""
+  session: "data/session.json"
+
+  phone: ""
+  password: ""
+
+  app_id: ""
+
+  device:
+    model: "PC"
+    system: "Windows 10"
+    app_version: "1.0.0"
+    lang_code: "ru"
+    system_lang: "ru"
+
+  rate_limit:
+    min_delay: 3s
+    concurrency: 1
+
+scrape:
+  channels:
+    - ""
+
+  keywords:
+    - ""
+    - ""
+
+  lookback: 168h
+
+  dedup_window: 720h
