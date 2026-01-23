@@ -1,23 +1,17 @@
-app_name: telegram-bot-scraper
+app_name: tg-collector
 env: dev
 
 logger:
-  level: info          # debug | info | warn | error
+  level: info
   json: false
-  app_name: telegram-bot-scraper
-
-mode:
-  kind: mtproto        # mtproto | botapi
 
 mtproto:
   api_id: 12345678
-  api_hash: ""
+  api_hash: "..."
   session: "data/session.json"
 
-  phone: ""
+  phone: "+49..."
   password: ""
-
-  app_id: ""
 
   device:
     model: "PC"
@@ -27,17 +21,15 @@ mtproto:
     system_lang: "ru"
 
   rate_limit:
-    min_delay: 3s
+    min_delay: 1s
     concurrency: 1
 
 scrape:
   channels:
-    - ""
-
+    - "@somechannel"
+    - "https://t.me/anotherchannel"
   keywords:
-    - ""
-    - ""
-
+    - "makves"
+    - "leak"
   lookback: 168h
-
   dedup_window: 720h

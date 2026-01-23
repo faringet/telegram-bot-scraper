@@ -1,4 +1,3 @@
-// pkg/logger/logger.go
 package logger
 
 import (
@@ -11,8 +10,6 @@ import (
 	"github.com/faringet/telegram-bot-scraper/pkg/config"
 )
 
-// NewLogger создает slog.Logger на основе общего блока config.Logger.
-// Важно: принимает именно config.Logger (а не config.TGBot), потому что логгер — общий пакет.
 func NewLogger(c config.Logger) *slog.Logger {
 	lvl := parseLevel(strings.ToLower(strings.TrimSpace(c.Level)))
 	opts := handlerOptions(lvl)
