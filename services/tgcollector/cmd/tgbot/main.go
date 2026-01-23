@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,7 +15,6 @@ import (
 
 func main() {
 	cfg := config.New()
-
 	log := logger.NewLogger(cfg.Logger)
 
 	application, err := app.New(cfg, log)
@@ -22,13 +22,21 @@ func main() {
 		log.Error("app init failed", slog.Any("err", err))
 		os.Exit(1)
 	}
-	defer application.Close()
+	defer func() {
+		if err := application.Close(); err != nil {
+			log.Error("app close failed", slog.Any("err", err))
+		}
+	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := application.RunDaemon(ctx); err != nil {
+	if err := application.RunDaemon(ctx); err != nil && !isShutdownErr(err) {
 		log.Error("app run failed", slog.Any("err", err))
 		os.Exit(1)
 	}
+}
+
+func isShutdownErr(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
