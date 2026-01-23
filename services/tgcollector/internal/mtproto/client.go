@@ -27,7 +27,7 @@ func New(c cfg.MTProto, logg *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("mtproto config: %w", err)
 	}
 
-	td, err := newTelegramClient(c, logg)
+	td, err := newTelegramClient(c)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (c *Client) WithClient(ctx context.Context, fn func(ctx context.Context, td
 	})
 }
 
-func newTelegramClient(c cfg.MTProto, logg *slog.Logger) (*telegram.Client, error) {
+func newTelegramClient(c cfg.MTProto) (*telegram.Client, error) {
 	storage := &session.FileStorage{Path: c.Session}
 
 	device := telegram.DeviceConfig{
@@ -63,7 +63,6 @@ func newTelegramClient(c cfg.MTProto, logg *slog.Logger) (*telegram.Client, erro
 		SystemLangCode: c.Device.SystemLang,
 	}
 
-	//todo допилить логгер
 	td := telegram.NewClient(c.APIID, c.APIHash, telegram.Options{
 		SessionStorage: storage,
 		Device:         device,

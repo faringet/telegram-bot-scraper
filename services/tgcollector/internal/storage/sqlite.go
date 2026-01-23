@@ -55,10 +55,6 @@ func NewSQLite(cfg SQLiteConfig) (*SQLite, error) {
 		return nil, fmt.Errorf("sqlite: mkdir data dir: %w", err)
 	}
 
-	// DSN for modernc.org/sqlite (pure Go)
-	// Важно:
-	// - busy_timeout: помогает при конкурирующем чтении/записи (скрапер + бот)
-	// - WAL: лучше для параллельности
 	pragma := ""
 	if cfg.JournalModeWAL {
 		pragma += "&_pragma=journal_mode(WAL)"
@@ -66,7 +62,6 @@ func NewSQLite(cfg SQLiteConfig) (*SQLite, error) {
 	if cfg.BusyTimeout > 0 {
 		pragma += fmt.Sprintf("&_pragma=busy_timeout(%d)", cfg.BusyTimeout.Milliseconds())
 	}
-	// cache=shared позволяет нескольким подключениям разделять кеш (мелочь, но ок)
 	dsn := fmt.Sprintf("file:%s?cache=shared%s", cfg.Path, pragma)
 
 	db, err := sql.Open("sqlite", dsn)
@@ -74,12 +69,10 @@ func NewSQLite(cfg SQLiteConfig) (*SQLite, error) {
 		return nil, fmt.Errorf("sqlite open: %w", err)
 	}
 
-	// SQLite не любит большие пулы — оставим один коннект.
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(0)
 
-	// foreign_keys включим на всякий (не критично)
 	if _, err := db.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqlite pragma: %w", err)
@@ -132,8 +125,6 @@ func (s *SQLite) migrate() error {
 	return nil
 }
 
-// SaveHit: дедуп через UNIQUE(channel, message_id) + INSERT OR IGNORE.
-// inserted=true если реально вставили новую запись.
 func (s *SQLite) SaveHit(ctx context.Context, h Hit) (bool, error) {
 	if s == nil || s.db == nil {
 		return false, errors.New("sqlite: db is nil")

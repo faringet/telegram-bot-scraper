@@ -1,0 +1,21 @@
+app_name: tg-notifier
+env: dev
+
+logger:
+  level: info
+  json: false
+
+telegram_bot:
+  token: ""
+  debug: false
+  use_webhook: false
+  poll_timeout: 30s
+
+notifier:
+  db_path: "data/scraper.db"
+  supervisor_chat_id: 12345678
+  interval: 30s
+  batch_size: 3
+  min_delay: 500ms
+  max_text_runes: 300
+  dry_run: false

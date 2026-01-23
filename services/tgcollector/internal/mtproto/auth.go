@@ -20,9 +20,6 @@ func authorizeIfNeeded(ctx context.Context, td *telegram.Client, c cfg.MTProto, 
 	if td == nil {
 		return errors.New("mtproto: telegram client is nil")
 	}
-	if log == nil {
-		log = slog.Default()
-	}
 
 	phone := strings.TrimSpace(c.Phone)
 	if phone == "" {

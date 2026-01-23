@@ -10,7 +10,7 @@ mtproto:
   api_hash: "..."
   session: "data/session.json"
 
-  phone: "+49..."
+  phone: "+7..."
   password: ""
 
   device:
@@ -21,7 +21,7 @@ mtproto:
     system_lang: "ru"
 
   rate_limit:
-    min_delay: 1s
+    min_delay: 3
     concurrency: 1
 
 scrape:
@@ -29,7 +29,14 @@ scrape:
     - "@somechannel"
     - "https://t.me/anotherchannel"
   keywords:
-    - "makves"
+    - "test"
     - "leak"
+
   lookback: 168h
   dedup_window: 720h
+
+  per_channel_max_scan: 300
+  min_delay: 2s
+  between_channels_delay: 3s
+
+  interval: 3m

@@ -29,11 +29,11 @@ func (l *Logger) Validate() error {
 }
 
 type TelegramBot struct {
-	Token       string        `mapstructure:"token"`        // токен бота (если используем botapi)
-	Debug       bool          `mapstructure:"debug"`        // подробные логи апдейтов
-	UseWebhook  bool          `mapstructure:"use_webhook"`  // webhook или long polling
-	WebhookURL  string        `mapstructure:"webhook_url"`  // если webhook
-	PollTimeout time.Duration `mapstructure:"poll_timeout"` // long polling timeout
+	Token       string        `mapstructure:"token"`
+	Debug       bool          `mapstructure:"debug"`
+	UseWebhook  bool          `mapstructure:"use_webhook"`
+	WebhookURL  string        `mapstructure:"webhook_url"`
+	PollTimeout time.Duration `mapstructure:"poll_timeout"`
 }
 
 func (t *TelegramBot) Validate(enabled bool) error {
@@ -44,7 +44,7 @@ func (t *TelegramBot) Validate(enabled bool) error {
 		return errors.New("telegram_bot config is nil")
 	}
 	if strings.TrimSpace(t.Token) == "" {
-		return errors.New("telegram_bot.token is required when mode=botapi")
+		return errors.New("telegram_bot.token is required")
 	}
 	if t.UseWebhook && strings.TrimSpace(t.WebhookURL) == "" {
 		return errors.New("telegram_bot.webhook_url is required when use_webhook=true")
@@ -58,25 +58,25 @@ func (t *TelegramBot) Validate(enabled bool) error {
 type MTProto struct {
 	APIID     int    `mapstructure:"api_id"`
 	APIHash   string `mapstructure:"api_hash"`
-	Phone     string `mapstructure:"phone"`    // +49123...
-	Password  string `mapstructure:"password"` // 2FA (если включено)
-	AppID     string `mapstructure:"app_id"`   // произвольный идентификатор приложения в логах
-	Session   string `mapstructure:"session"`  // путь к session file, напр. "data/session.json"
+	Phone     string `mapstructure:"phone"`
+	Password  string `mapstructure:"password"`
+	AppID     string `mapstructure:"app_id"`
+	Session   string `mapstructure:"session"`
 	Device    Device `mapstructure:"device"`
 	RateLimit Rate   `mapstructure:"rate_limit"`
 }
 
 type Device struct {
-	Model      string `mapstructure:"model"`       // "PC"
-	System     string `mapstructure:"system"`      // "Windows 10"
-	AppVersion string `mapstructure:"app_version"` // "1.0.0"
-	LangCode   string `mapstructure:"lang_code"`   // "en" / "ru"
-	SystemLang string `mapstructure:"system_lang"` // "en" / "ru"
+	Model      string `mapstructure:"model"`
+	System     string `mapstructure:"system"`
+	AppVersion string `mapstructure:"app_version"`
+	LangCode   string `mapstructure:"lang_code"`
+	SystemLang string `mapstructure:"system_lang"`
 }
 
 type Rate struct {
-	MinDelay    time.Duration `mapstructure:"min_delay"`   // 400ms
-	Concurrency int           `mapstructure:"concurrency"` // 1..N
+	MinDelay    time.Duration `mapstructure:"min_delay"`
+	Concurrency int           `mapstructure:"concurrency"`
 }
 
 func (m *MTProto) Validate() error {

@@ -4,3 +4,4 @@
 
 # app config (local only)
 services/tgcollector/config/config.yaml
+services/tgnotifier/config/config.yaml
