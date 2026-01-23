@@ -30,19 +30,6 @@ type Scraper struct {
 }
 
 func New(cfg Config, log *slog.Logger, store storage.Store) *Scraper {
-	if log == nil {
-		log = slog.Default()
-	}
-	if cfg.PerChannelMaxScan <= 0 {
-		cfg.PerChannelMaxScan = 500
-	}
-	if cfg.MinDelay <= 0 {
-		cfg.MinDelay = 400 * time.Millisecond
-	}
-	if cfg.BetweenChannelsDelay <= 0 {
-		cfg.BetweenChannelsDelay = 2 * time.Second
-	}
-
 	return &Scraper{
 		cfg:   cfg,
 		log:   log.With(slog.String("component", "scraper")),
@@ -51,7 +38,6 @@ func New(cfg Config, log *slog.Logger, store storage.Store) *Scraper {
 }
 
 func (s *Scraper) Crawl(ctx context.Context, td *telegram.Client) error {
-
 	keywords := normalizeKeywords(s.cfg.Keywords)
 	api := tg.NewClient(td)
 

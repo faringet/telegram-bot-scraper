@@ -44,7 +44,7 @@ func (t *TelegramBot) Validate(enabled bool) error {
 		return errors.New("telegram_bot config is nil")
 	}
 	if strings.TrimSpace(t.Token) == "" {
-		return errors.New("telegram_bot.token is required when mode=botapi")
+		return errors.New("telegram_bot.token is required")
 	}
 	if t.UseWebhook && strings.TrimSpace(t.WebhookURL) == "" {
 		return errors.New("telegram_bot.webhook_url is required when use_webhook=true")
@@ -75,8 +75,8 @@ type Device struct {
 }
 
 type Rate struct {
-	MinDelay    time.Duration `mapstructure:"min_delay"`   // 400ms
-	Concurrency int           `mapstructure:"concurrency"` // 1..N
+	MinDelay    time.Duration `mapstructure:"min_delay"`
+	Concurrency int           `mapstructure:"concurrency"`
 }
 
 func (m *MTProto) Validate() error {

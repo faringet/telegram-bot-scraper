@@ -27,7 +27,6 @@ func (s *Scraper) scanChannel(ctx context.Context, api *tg.Client, username stri
 		return fmt.Errorf("get checkpoint @%s: %w", username, err)
 	}
 
-	//todoo в конфиг
 	const batchLimit = 100
 	scanned := 0
 	hitsNew := 0
