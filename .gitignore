@@ -3,4 +3,4 @@
 !/data/.gitkeep
 
 # app config (local only)
-services/tgbot/config/config.yaml
+services/tgcollector/config/config.yaml

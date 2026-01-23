@@ -1,4 +1,3 @@
-// services/tgbot/internal/mtproto/client.go
 package mtproto
 
 import (
@@ -12,21 +11,17 @@ import (
 	"github.com/gotd/td/telegram"
 )
 
-// Client — транспорт + lifecycle MTProto.
-// Никакой auth-логики здесь нет: только создание клиента, Run и выдача tg.Client.
 type Client struct {
 	cfg cfg.MTProto
 	log *slog.Logger
 	td  *telegram.Client
 }
 
-// New создает MTProto клиента.
-// Конфиг должен быть валиден (строгий режим).
 func New(c cfg.MTProto, logg *slog.Logger) (*Client, error) {
 	if logg == nil {
 		logg = slog.Default()
 	}
-	logg = logg.With(slog.String("component", "tgbot.mtproto"))
+	logg = logg.With(slog.String("component", "tgcollector.mtproto"))
 
 	if err := c.Validate(); err != nil {
 		return nil, fmt.Errorf("mtproto config: %w", err)
@@ -44,15 +39,9 @@ func New(c cfg.MTProto, logg *slog.Logger) (*Client, error) {
 	}, nil
 }
 
-// Run поднимает соединение, гарантирует авторизацию и передает tg.Client в fn.
-// Завершается по ctx.Done().
-
 func (c *Client) WithClient(ctx context.Context, fn func(ctx context.Context, td *telegram.Client) error) error {
 	if c == nil || c.td == nil {
 		return errors.New("mtproto: client is nil")
-	}
-	if fn == nil {
-		return errors.New("mtproto: fn is nil")
 	}
 
 	return c.td.Run(ctx, func(ctx context.Context) error {
@@ -62,8 +51,6 @@ func (c *Client) WithClient(ctx context.Context, fn func(ctx context.Context, td
 		return fn(ctx, c.td)
 	})
 }
-
-// -------------------- wiring --------------------
 
 func newTelegramClient(c cfg.MTProto, logg *slog.Logger) (*telegram.Client, error) {
 	storage := &session.FileStorage{Path: c.Session}
@@ -76,33 +63,11 @@ func newTelegramClient(c cfg.MTProto, logg *slog.Logger) (*telegram.Client, erro
 		SystemLangCode: c.Device.SystemLang,
 	}
 
-	//stdlog := log.New(
-	//	&slogWriter{log: logg.With(slog.String("component", "gotd"))},
-	//	"",
-	//	0,
-	//)
-
 	//todo допилить логгер
 	td := telegram.NewClient(c.APIID, c.APIHash, telegram.Options{
 		SessionStorage: storage,
 		Device:         device,
-		//Logger:         stdlog,
 	})
 
 	return td, nil
-}
-
-type slogWriter struct {
-	log *slog.Logger
-}
-
-func (w *slogWriter) Write(p []byte) (n int, err error) {
-	if w == nil || w.log == nil {
-		return len(p), nil
-	}
-	msg := string(p)
-	if msg != "" {
-		w.log.Info(msg)
-	}
-	return len(p), nil
 }

@@ -1,4 +1,3 @@
-// pkg/config/blocks.go
 package config
 
 import (
@@ -9,9 +8,9 @@ import (
 )
 
 type Logger struct {
-	Level   string `mapstructure:"level"`    // debug/info/warn/error
-	JSON    bool   `mapstructure:"json"`     // true -> JSON logs
-	AppName string `mapstructure:"app_name"` // будет проставлен сервисом (или задан явно)
+	Level   string `mapstructure:"level"`
+	JSON    bool   `mapstructure:"json"`
+	AppName string `mapstructure:"app_name"`
 }
 
 func (l *Logger) Validate() error {
@@ -27,25 +26,6 @@ func (l *Logger) Validate() error {
 		return fmt.Errorf("logger.level must be one of [debug, info, warn, error], got %q", l.Level)
 	}
 	return nil
-}
-
-type Mode struct {
-	Kind string `mapstructure:"kind"` // mtproto | botapi (бот как UI, опционально)
-}
-
-func (m *Mode) Validate() error {
-	if m == nil {
-		return errors.New("mode config is nil")
-	}
-	if strings.TrimSpace(m.Kind) == "" {
-		return errors.New("mode.kind is required (mtproto|botapi)")
-	}
-	switch m.Kind {
-	case "mtproto", "botapi":
-		return nil
-	default:
-		return fmt.Errorf("mode.kind must be one of [mtproto, botapi], got %q", m.Kind)
-	}
 }
 
 type TelegramBot struct {
@@ -75,11 +55,6 @@ func (t *TelegramBot) Validate(enabled bool) error {
 	return nil
 }
 
-// - api_id / api_hash выдаются Telegram на https://my.telegram.org (это ключи приложения)
-// - session — локальный файл, где сохраняется авторизация (чтобы не логиниться каждый раз)
-// - phone — номер для первичной авторизации
-// - password — 2FA пароль (если включен)
-// - device_* — помогает сделать сессию "похожей на обычный клиент"
 type MTProto struct {
 	APIID     int    `mapstructure:"api_id"`
 	APIHash   string `mapstructure:"api_hash"`
@@ -118,11 +93,6 @@ func (m *MTProto) Validate() error {
 		return errors.New("mtproto.session is required (e.g. data/session.json)")
 	}
 
-	// Phone/Password могут быть пустыми, если ты будешь вводить их интерактивно при первом логине.
-	// Но для "строгого" режима можно сделать обязательным phone:
-	// if strings.TrimSpace(m.Phone) == "" { return errors.New("mtproto.phone is required") }
-
-	// Device: всё обязательное, чтобы не было "магии".
 	if strings.TrimSpace(m.Device.Model) == "" {
 		return errors.New("mtproto.device.model is required")
 	}
@@ -139,7 +109,6 @@ func (m *MTProto) Validate() error {
 		return errors.New("mtproto.device.system_lang is required")
 	}
 
-	// Rate-limit: строгий режим
 	if m.RateLimit.MinDelay <= 0 {
 		return errors.New("mtproto.rate_limit.min_delay must be > 0 (e.g. 400ms)")
 	}
@@ -150,12 +119,18 @@ func (m *MTProto) Validate() error {
 	return nil
 }
 
-// Scrape — что и где ищем
 type Scrape struct {
-	Keywords    []string      `mapstructure:"keywords"`     // ключевые слова (будем приводить к lower)
-	Channels    []string      `mapstructure:"channels"`     // @channel или https://t.me/...
-	Lookback    time.Duration `mapstructure:"lookback"`     // например 168h
-	DedupWindow time.Duration `mapstructure:"dedup_window"` // например 720h
+	Keywords []string `mapstructure:"keywords"`
+	Channels []string `mapstructure:"channels"`
+
+	Lookback    time.Duration `mapstructure:"lookback"`
+	DedupWindow time.Duration `mapstructure:"dedup_window"`
+
+	PerChannelMaxScan    int           `mapstructure:"per_channel_max_scan"`
+	MinDelay             time.Duration `mapstructure:"min_delay"`
+	BetweenChannelsDelay time.Duration `mapstructure:"between_channels_delay"`
+
+	Interval time.Duration `mapstructure:"interval"`
 }
 
 func (s *Scrape) Validate() error {
@@ -163,7 +138,6 @@ func (s *Scrape) Validate() error {
 		return errors.New("scrape config is nil")
 	}
 
-	// keywords (normalize + strict)
 	for i := range s.Keywords {
 		s.Keywords[i] = strings.TrimSpace(strings.ToLower(s.Keywords[i]))
 	}
@@ -178,7 +152,6 @@ func (s *Scrape) Validate() error {
 		return errors.New("scrape.keywords must contain at least 1 keyword")
 	}
 
-	// channels (normalize + strict)
 	for i := range s.Channels {
 		s.Channels[i] = strings.TrimSpace(s.Channels[i])
 	}
@@ -193,12 +166,24 @@ func (s *Scrape) Validate() error {
 		return errors.New("scrape.channels must contain at least 1 channel")
 	}
 
-	// durations strict
 	if s.Lookback <= 0 {
-		return errors.New("scrape.lookback must be > 0 (e.g. 168h)")
+		return errors.New("scrape.lookback must be > 0")
 	}
 	if s.DedupWindow <= 0 {
-		return errors.New("scrape.dedup_window must be > 0 (e.g. 720h)")
+		return errors.New("scrape.dedup_window must be > 0")
+	}
+
+	if s.PerChannelMaxScan < 0 {
+		return errors.New("scrape.per_channel_max_scan must be >= 0")
+	}
+	if s.MinDelay < 0 {
+		return errors.New("scrape.min_delay must be >= 0")
+	}
+	if s.BetweenChannelsDelay < 0 {
+		return errors.New("scrape.between_channels_delay must be >= 0")
+	}
+	if s.Interval <= 0 {
+		return errors.New("scrape.interval must be > 0 ")
 	}
 
 	return nil
