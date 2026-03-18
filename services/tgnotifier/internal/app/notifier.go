@@ -73,7 +73,7 @@ func (n *Notifier) Process(ctx context.Context, reason string) (Result, error) {
 			ctx,
 			n.cfg.SupervisorChatID,
 			msg,
-			"",
+			"HTML",
 			true,
 		)
 		if sendErr != nil {

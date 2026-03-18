@@ -46,7 +46,7 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 			BatchSize:        cfg.Notifier.BatchSize,
 			MinDelay:         cfg.Notifier.MinDelay,
 			DryRun:           cfg.Notifier.DryRun,
-			MaxTextRunes:     900,
+			MaxTextRunes:     cfg.Notifier.MaxTextRunes,
 		},
 	})
 

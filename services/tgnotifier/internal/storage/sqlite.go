@@ -23,6 +23,9 @@ type Hit struct {
 	Keyword         string
 	CreatedAtUnix   int64
 	DeliveredAtUnix sql.NullInt64
+
+	Category  sql.NullString
+	LLMReason sql.NullString
 }
 
 type Store interface {
@@ -103,12 +106,16 @@ func (s *SQLite) ListUndelivered(ctx context.Context, limit int) ([]Hit, error) 
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT
-			id, channel, message_id, message_date_unix, text, link, keyword, created_at_unix, delivered_at_unix
-		FROM hits
-		WHERE delivered_at_unix IS NULL
-		ORDER BY message_date_unix DESC
-		LIMIT ?;
+SELECT
+  id, channel, message_id, message_date_unix, text, link, keyword, created_at_unix, delivered_at_unix,
+  category, llm_reason
+FROM hits
+WHERE delivered_at_unix IS NULL
+  AND category IS NOT NULL
+  AND category != 'other'
+  AND llm_reason IS NOT NULL
+ORDER BY message_date_unix DESC
+LIMIT ?;
 	`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite list undelivered: %w", err)
@@ -128,6 +135,8 @@ func (s *SQLite) ListUndelivered(ctx context.Context, limit int) ([]Hit, error) 
 			&h.Keyword,
 			&h.CreatedAtUnix,
 			&h.DeliveredAtUnix,
+			&h.Category,
+			&h.LLMReason,
 		); err != nil {
 			return nil, fmt.Errorf("sqlite scan hit: %w", err)
 		}

@@ -1,0 +1,53 @@
+version: "3.9"
+
+name: telegram-bot-scraper
+
+networks:
+  tgnet:
+    driver: bridge
+
+volumes:
+  ollama: {}
+
+services:
+  # Ollama runtime (models stored in docker volume "ollama")
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    networks: [tgnet]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  # Your classifier worker
+  tgclassifier:
+    build:
+      context: .
+      dockerfile: services/tgclassifier/Dockerfile
+    container_name: tgclassifier
+    networks: [tgnet]
+    depends_on:
+      - ollama
+    environment:
+      # IMPORTANT: inside docker -> use service name "ollama"
+      OLLAMA_URL: "http://ollama:11434"
+      OLLAMA_MODEL: "qwen2.5:7b"
+
+      # sqlite path inside container
+      TG_DB_PATH: "/data/scraper.db"
+
+      # worker tuning (optional)
+      CLASSIFIER_INTERVAL: "3s"
+      CLASSIFIER_BATCH: "20"
+      CLASSIFIER_LEASE: "2m"
+      CLASSIFIER_MAX_RETRIES: "2"
+      CLASSIFIER_RETRY_BACKOFF: "750ms"
+      CLASSIFIER_MAX_TEXT_RUNES: "1800"
+      CLASSIFIER_ONLY_UNDELIVERED: "false"
+      LOG_LEVEL: "info"
+    volumes:
+      # shared DB directory on host
+      - ./data:/data
+    restart: unless-stopped

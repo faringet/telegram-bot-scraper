@@ -122,6 +122,24 @@ func (s *SQLite) migrate() error {
 			return fmt.Errorf("sqlite migrate: %w", err)
 		}
 	}
+
+	// ---- schema extension for LLM classification (backward-compatible) ----
+	// SQLite doesn't support "ADD COLUMN IF NOT EXISTS", so we check columns first.
+	if err := s.ensureColumns("hits", map[string]string{
+		"category":           "TEXT NULL",    // hr | ai_it | other | ...
+		"classified_at_unix": "INTEGER NULL", // unix time when classifier wrote the label
+		"llm_model":          "TEXT NULL",    // e.g. "qwen2.5:7b"
+		"llm_confidence":     "REAL NULL",    // 0..1 (optional)
+		"llm_reason":         "TEXT NULL",    // short explanation (optional)
+	}); err != nil {
+		return err
+	}
+
+	// Pretty views (for human-readable browsing). We recreate them to keep them in sync with schema.
+	if err := s.recreateViews(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -217,5 +235,86 @@ func (s *SQLite) Prune(ctx context.Context) error {
 		return fmt.Errorf("sqlite prune hits: %w", err)
 	}
 
+	return nil
+}
+
+// ensureColumns adds missing columns to a table without breaking existing DBs.
+func (s *SQLite) ensureColumns(table string, want map[string]string) error {
+	if s == nil || s.db == nil {
+		return errors.New("sqlite: db is nil")
+	}
+	if table == "" {
+		return errors.New("sqlite: table is required")
+	}
+
+	existing := make(map[string]struct{}, 16)
+
+	rows, err := s.db.Query(fmt.Sprintf(`PRAGMA table_info(%s);`, table))
+	if err != nil {
+		return fmt.Errorf("sqlite pragma table_info(%s): %w", table, err)
+	}
+	defer rows.Close()
+
+	// PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+	for rows.Next() {
+		var (
+			cid     int
+			name    string
+			typ     string
+			notnull int
+			dflt    any
+			pk      int
+		)
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("sqlite pragma table_info scan: %w", err)
+		}
+		existing[name] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite pragma table_info rows: %w", err)
+	}
+
+	for col, colDef := range want {
+		if _, ok := existing[col]; ok {
+			continue
+		}
+		q := fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s;`, table, col, colDef)
+		if _, err := s.db.Exec(q); err != nil {
+			return fmt.Errorf("sqlite add column %s.%s: %w", table, col, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *SQLite) recreateViews() error {
+	if s == nil || s.db == nil {
+		return errors.New("sqlite: db is nil")
+	}
+
+	// Drop & recreate to keep view definition aligned with evolving schema.
+	viewDDL := []string{
+		`DROP VIEW IF EXISTS hits_pretty;`,
+		`CREATE VIEW IF NOT EXISTS hits_pretty AS
+		SELECT
+		  h.*,
+		  datetime(h.message_date_unix, 'unixepoch', 'localtime') AS message_date_local,
+		  datetime(h.created_at_unix,   'unixepoch', 'localtime') AS created_at_local,
+		  CASE
+		    WHEN h.delivered_at_unix IS NULL THEN NULL
+		    ELSE datetime(h.delivered_at_unix, 'unixepoch', 'localtime')
+		  END AS delivered_at_local,
+		  CASE
+		    WHEN h.classified_at_unix IS NULL THEN NULL
+		    ELSE datetime(h.classified_at_unix, 'unixepoch', 'localtime')
+		  END AS classified_at_local
+		FROM hits h;`,
+	}
+
+	for _, q := range viewDDL {
+		if _, err := s.db.Exec(q); err != nil {
+			return fmt.Errorf("sqlite recreate views: %w", err)
+		}
+	}
 	return nil
 }

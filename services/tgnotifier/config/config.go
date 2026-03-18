@@ -79,7 +79,7 @@ func (c *TGNotifier) Validate() error {
 		c.Notifier.MinDelay = 200 * time.Millisecond
 	}
 	if c.Notifier.MaxTextRunes <= 0 {
-		c.Notifier.MaxTextRunes = 900
+		c.Notifier.MaxTextRunes = 200
 	}
 
 	if err := c.Notifier.Validate(); err != nil {
