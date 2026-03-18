@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type Base struct {
+	AppName string `mapstructure:"app_name"`
+	Env     string `mapstructure:"env"`
+}
+
+func (b *Base) Validate() error {
+	if b == nil {
+		return errors.New("base config is nil")
+	}
+
+	b.AppName = strings.TrimSpace(b.AppName)
+	b.Env = strings.TrimSpace(strings.ToLower(b.Env))
+
+	return nil
+}
+
+type Runtime struct {
+	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+}
+
+func (r *Runtime) Validate() error {
+	if r == nil {
+		return errors.New("runtime config is nil")
+	}
+	if r.ShutdownTimeout < 0 {
+		return errors.New("runtime.shutdown_timeout must be >= 0")
+	}
+	return nil
+}
+
 type Logger struct {
 	Level   string `mapstructure:"level"`
 	JSON    bool   `mapstructure:"json"`
@@ -28,12 +58,107 @@ func (l *Logger) Validate() error {
 	return nil
 }
 
+type Storage struct {
+	Driver   string          `mapstructure:"driver"`
+	SQLite   SQLiteStorage   `mapstructure:"sqlite"`
+	Postgres PostgresStorage `mapstructure:"postgres"`
+}
+
+func (s *Storage) Validate() error {
+	if s == nil {
+		return errors.New("storage config is nil")
+	}
+
+	driver := strings.ToLower(strings.TrimSpace(s.Driver))
+	switch driver {
+	case "sqlite":
+		s.Driver = driver
+		return s.SQLite.Validate()
+	case "postgres", "postgresql":
+		s.Driver = "postgres"
+		return s.Postgres.Validate()
+	default:
+		return fmt.Errorf("storage.driver must be one of [sqlite, postgres], got %q", s.Driver)
+	}
+}
+
+type SQLiteStorage struct {
+	Path           string        `mapstructure:"path"`
+	BusyTimeout    time.Duration `mapstructure:"busy_timeout"`
+	JournalModeWAL bool          `mapstructure:"journal_mode_wal"`
+}
+
+func (s *SQLiteStorage) Validate() error {
+	if s == nil {
+		return errors.New("storage.sqlite config is nil")
+	}
+	if strings.TrimSpace(s.Path) == "" {
+		return errors.New("storage.sqlite.path is required")
+	}
+	if s.BusyTimeout < 0 {
+		return errors.New("storage.sqlite.busy_timeout must be >= 0")
+	}
+	return nil
+}
+
+type PostgresStorage struct {
+	DSN             string        `mapstructure:"dsn"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+}
+
+func (p *PostgresStorage) Validate() error {
+	if p == nil {
+		return errors.New("storage.postgres config is nil")
+	}
+	if strings.TrimSpace(p.DSN) == "" {
+		return errors.New("storage.postgres.dsn is required")
+	}
+	if p.MaxOpenConns < 0 {
+		return errors.New("storage.postgres.max_open_conns must be >= 0")
+	}
+	if p.MaxIdleConns < 0 {
+		return errors.New("storage.postgres.max_idle_conns must be >= 0")
+	}
+	if p.ConnMaxLifetime < 0 {
+		return errors.New("storage.postgres.conn_max_lifetime must be >= 0")
+	}
+	if p.ConnMaxIdleTime < 0 {
+		return errors.New("storage.postgres.conn_max_idle_time must be >= 0")
+	}
+	return nil
+}
+
+type Ollama struct {
+	BaseURL string        `mapstructure:"base_url"`
+	Timeout time.Duration `mapstructure:"timeout"`
+	Model   string        `mapstructure:"model"`
+}
+
+func (o *Ollama) Validate() error {
+	if o == nil {
+		return errors.New("ollama config is nil")
+	}
+	if strings.TrimSpace(o.BaseURL) == "" {
+		return errors.New("ollama.base_url is required")
+	}
+	if strings.TrimSpace(o.Model) == "" {
+		return errors.New("ollama.model is required")
+	}
+	if o.Timeout <= 0 {
+		return errors.New("ollama.timeout must be > 0")
+	}
+	return nil
+}
+
 type TelegramBot struct {
-	Token       string        `mapstructure:"token"`        // токен бота (если используем botapi)
-	Debug       bool          `mapstructure:"debug"`        // подробные логи апдейтов
-	UseWebhook  bool          `mapstructure:"use_webhook"`  // webhook или long polling
-	WebhookURL  string        `mapstructure:"webhook_url"`  // если webhook
-	PollTimeout time.Duration `mapstructure:"poll_timeout"` // long polling timeout
+	Token       string        `mapstructure:"token"`
+	Debug       bool          `mapstructure:"debug"`
+	UseWebhook  bool          `mapstructure:"use_webhook"`
+	WebhookURL  string        `mapstructure:"webhook_url"`
+	PollTimeout time.Duration `mapstructure:"poll_timeout"`
 }
 
 func (t *TelegramBot) Validate(enabled bool) error {
@@ -44,7 +169,7 @@ func (t *TelegramBot) Validate(enabled bool) error {
 		return errors.New("telegram_bot config is nil")
 	}
 	if strings.TrimSpace(t.Token) == "" {
-		return errors.New("telegram_bot.token is required when mode=botapi")
+		return errors.New("telegram_bot.token is required")
 	}
 	if t.UseWebhook && strings.TrimSpace(t.WebhookURL) == "" {
 		return errors.New("telegram_bot.webhook_url is required when use_webhook=true")
@@ -58,25 +183,25 @@ func (t *TelegramBot) Validate(enabled bool) error {
 type MTProto struct {
 	APIID     int    `mapstructure:"api_id"`
 	APIHash   string `mapstructure:"api_hash"`
-	Phone     string `mapstructure:"phone"`    // +49123...
-	Password  string `mapstructure:"password"` // 2FA (если включено)
-	AppID     string `mapstructure:"app_id"`   // произвольный идентификатор приложения в логах
-	Session   string `mapstructure:"session"`  // путь к session file, напр. "data/session.json"
+	Phone     string `mapstructure:"phone"`
+	Password  string `mapstructure:"password"`
+	AppID     string `mapstructure:"app_id"`
+	Session   string `mapstructure:"session"`
 	Device    Device `mapstructure:"device"`
 	RateLimit Rate   `mapstructure:"rate_limit"`
 }
 
 type Device struct {
-	Model      string `mapstructure:"model"`       // "PC"
-	System     string `mapstructure:"system"`      // "Windows 10"
-	AppVersion string `mapstructure:"app_version"` // "1.0.0"
-	LangCode   string `mapstructure:"lang_code"`   // "en" / "ru"
-	SystemLang string `mapstructure:"system_lang"` // "en" / "ru"
+	Model      string `mapstructure:"model"`
+	System     string `mapstructure:"system"`
+	AppVersion string `mapstructure:"app_version"`
+	LangCode   string `mapstructure:"lang_code"`
+	SystemLang string `mapstructure:"system_lang"`
 }
 
 type Rate struct {
-	MinDelay    time.Duration `mapstructure:"min_delay"`   // 400ms
-	Concurrency int           `mapstructure:"concurrency"` // 1..N
+	MinDelay    time.Duration `mapstructure:"min_delay"`
+	Concurrency int           `mapstructure:"concurrency"`
 }
 
 func (m *MTProto) Validate() error {
@@ -183,7 +308,7 @@ func (s *Scrape) Validate() error {
 		return errors.New("scrape.between_channels_delay must be >= 0")
 	}
 	if s.Interval <= 0 {
-		return errors.New("scrape.interval must be > 0 ")
+		return errors.New("scrape.interval must be > 0")
 	}
 
 	return nil
