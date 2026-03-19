@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -23,22 +25,23 @@ type App struct {
 }
 
 func New(cfg *tgcollector.TGCollector, log *slog.Logger) (*App, error) {
+	if cfg == nil {
+		return nil, errors.New("collector app: config is nil")
+	}
+	if log == nil {
+		return nil, errors.New("collector app: logger is nil")
+	}
+
 	log = log.With(slog.String("component", "app"))
 
 	client, err := mtclient.New(cfg.MTProto, log)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create mtproto client: %w", err)
 	}
 
-	store, err := storage.NewSQLite(storage.SQLiteConfig{
-		//todo вынести в конфиг
-		Path:           "data/scraper.db",
-		DedupWindow:    cfg.Scrape.DedupWindow,
-		BusyTimeout:    5 * time.Second,
-		JournalModeWAL: true,
-	})
+	store, err := openStore(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open store: %w", err)
 	}
 
 	s := scraper.New(scraper.Config{
@@ -59,6 +62,22 @@ func New(cfg *tgcollector.TGCollector, log *slog.Logger) (*App, error) {
 	}, nil
 }
 
+func openStore(cfg *tgcollector.TGCollector) (storage.Store, error) {
+	switch cfg.Storage.Driver {
+	case "sqlite":
+		return storage.NewSQLite(storage.SQLiteConfig{
+			Path:           cfg.Storage.SQLite.Path,
+			DedupWindow:    cfg.Scrape.DedupWindow,
+			BusyTimeout:    cfg.Storage.SQLite.BusyTimeout,
+			JournalModeWAL: cfg.Storage.SQLite.JournalModeWAL,
+		})
+	case "postgres":
+		return nil, errors.New("collector postgres storage is not implemented yet")
+	default:
+		return nil, fmt.Errorf("unsupported storage driver: %s", cfg.Storage.Driver)
+	}
+}
+
 func (a *App) Close() error {
 	if a == nil || a.store == nil {
 		return nil
@@ -66,8 +85,12 @@ func (a *App) Close() error {
 	return a.store.Close()
 }
 
-func (a *App) RunDaemon(ctx context.Context) error {
-	a.log.Info("run started (daemon mode)")
+func (a *App) Run(ctx context.Context) error {
+	a.log.Info("run started (daemon mode)",
+		slog.String("storage_driver", a.cfg.Storage.Driver),
+		slog.String("sqlite_path", a.cfg.Storage.SQLite.Path),
+		slog.Duration("interval", a.cfg.Scrape.Interval),
+	)
 
 	interval := a.cfg.Scrape.Interval
 	if interval <= 0 {
@@ -96,9 +119,3 @@ func (a *App) RunDaemon(ctx context.Context) error {
 		}
 	})
 }
-
-//func (a *App) crawlOnce(ctx context.Context) error {
-//	return a.client.WithClient(ctx, func(ctx context.Context, td *telegram.Client) error {
-//		return a.scraper.Crawl(ctx, td)
-//	})
-//}

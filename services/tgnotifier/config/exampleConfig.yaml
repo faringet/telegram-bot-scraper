@@ -1,0 +1,30 @@
+app_name: tg-notifier
+env: dev
+
+logger:
+  level: info
+  json: false
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  driver: sqlite
+  sqlite:
+    path: data/scraper.db
+    busy_timeout: 5s
+    journal_mode_wal: true
+
+telegram_bot:
+  token: ""
+  debug: false
+  use_webhook: false
+  poll_timeout: 30s
+
+notifier:
+  supervisor_chat_id: 12345678
+  interval: 30s
+  batch_size: 3
+  min_delay: 500ms
+  max_text_runes: 300
+  dry_run: false

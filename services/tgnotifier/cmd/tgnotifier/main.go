@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	"github.com/faringet/telegram-bot-scraper/pkg/logger"
-	"github.com/faringet/telegram-bot-scraper/services/tgcollector/config"
-	"github.com/faringet/telegram-bot-scraper/services/tgcollector/internal/app"
+	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/config"
+	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/internal/app"
 )
 
 func main() {

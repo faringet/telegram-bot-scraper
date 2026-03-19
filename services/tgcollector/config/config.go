@@ -8,52 +8,43 @@ import (
 )
 
 type TGCollector struct {
-	AppName string      `mapstructure:"app_name"`
-	Env     string      `mapstructure:"env"`
-	Logger  pcfg.Logger `mapstructure:"logger"`
+	Base    pcfg.Base    `mapstructure:",squash"`
+	Logger  pcfg.Logger  `mapstructure:"logger"`
+	Runtime pcfg.Runtime `mapstructure:"runtime"`
+	Storage pcfg.Storage `mapstructure:"storage"`
 
 	MTProto pcfg.MTProto `mapstructure:"mtproto"`
 	Scrape  pcfg.Scrape  `mapstructure:"scrape"`
 }
 
-func (c *TGCollector) Validate() error {
-	if c.AppName == "" {
-		c.AppName = "tg-collector"
+func (c *TGCollector) setDefaults() {
+	if c.Base.AppName == "" {
+		c.Base.AppName = "tg-collector"
 	}
-	if c.Env == "" {
-		c.Env = "dev"
+	if c.Base.Env == "" {
+		c.Base.Env = "dev"
 	}
 
 	if c.Logger.Level == "" {
 		c.Logger.Level = "info"
 	}
-	c.Logger.AppName = c.AppName
-	if err := c.Logger.Validate(); err != nil {
-		return fmt.Errorf("logger: %w", err)
+
+	if c.Runtime.ShutdownTimeout == 0 {
+		c.Runtime.ShutdownTimeout = 15 * time.Second
 	}
 
-	if err := c.MTProto.Validate(); err != nil {
-		return fmt.Errorf("mtproto: %w", err)
+	if c.Storage.Driver == "" {
+		c.Storage.Driver = "sqlite"
 	}
-	if err := c.Scrape.Validate(); err != nil {
-		return fmt.Errorf("scrape: %w", err)
+	if c.Storage.SQLite.Path == "" {
+		c.Storage.SQLite.Path = "data/scraper.db"
 	}
-
-	return nil
-}
-
-func New() *TGCollector {
-	c := pcfg.MustLoad[TGCollector](pcfg.Options{
-		Paths: []string{
-			"./services/tgcollector/config",
-			"./config",
-			"./configs",
-		},
-		Names:         []string{"config", "tgcollector", "config.local"},
-		Type:          "yaml",
-		EnvPrefix:     "TGC",
-		OptionalFiles: true,
-	})
+	if c.Storage.SQLite.BusyTimeout <= 0 {
+		c.Storage.SQLite.BusyTimeout = 5 * time.Second
+	}
+	if !c.Storage.SQLite.JournalModeWAL {
+		c.Storage.SQLite.JournalModeWAL = true
+	}
 
 	if c.MTProto.Session == "" {
 		c.MTProto.Session = "data/session.json"
@@ -86,6 +77,46 @@ func New() *TGCollector {
 	if c.Scrape.Interval <= 0 {
 		c.Scrape.Interval = 60 * time.Minute
 	}
+}
+
+func (c *TGCollector) Validate() error {
+	c.setDefaults()
+
+	if err := c.Base.Validate(); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+	if err := c.Logger.Validate(); err != nil {
+		return fmt.Errorf("logger: %w", err)
+	}
+	if err := c.Runtime.Validate(); err != nil {
+		return fmt.Errorf("runtime: %w", err)
+	}
+	if err := c.Storage.Validate(); err != nil {
+		return fmt.Errorf("storage: %w", err)
+	}
+	if err := c.MTProto.Validate(); err != nil {
+		return fmt.Errorf("mtproto: %w", err)
+	}
+	if err := c.Scrape.Validate(); err != nil {
+		return fmt.Errorf("scrape: %w", err)
+	}
+
+	return nil
+}
+
+func New() *TGCollector {
+	c := pcfg.MustLoad[TGCollector](pcfg.Options{
+		Paths: []string{
+			"./services/tgcollector/config",
+			"./config",
+			"./configs",
+		},
+		Names:         []string{"config", "tgcollector", "config.local"},
+		Type:          "yaml",
+		EnvPrefix:     "TGC",
+		OptionalFiles: true,
+	})
+
 	if err := c.Validate(); err != nil {
 		panic(fmt.Errorf("invalid tg-collector config: %w", err))
 	}

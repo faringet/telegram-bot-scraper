@@ -1,0 +1,32 @@
+app_name: tg-classifier
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  driver: sqlite
+  sqlite:
+    path: data/scraper.db
+    busy_timeout: 10s
+    journal_mode_wal: true
+
+ollama:
+  base_url: http://127.0.0.1:11434
+  timeout: 60s
+  model: qwen2.5:7b
+
+classifier:
+  interval: 5s
+  batch_size: 20
+  lease: 2m
+  worker_id: ""
+  max_text_runes: 1800
+  max_retries: 3
+  retry_backoff: 750ms
+  only_undelivered: false
+  whitelist_path: ""

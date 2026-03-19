@@ -6,27 +6,36 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/faringet/telegram-bot-scraper/pkg/config"
 )
 
-func NewLogger(c config.Logger) *slog.Logger {
-	lvl := parseLevel(strings.ToLower(strings.TrimSpace(c.Level)))
-	opts := handlerOptions(lvl)
+type Options struct {
+	AppName string
+	Env     string
+	Level   string
+	JSON    bool
+}
+
+func NewLogger(opts Options) *slog.Logger {
+	lvl := parseLevel(strings.ToLower(strings.TrimSpace(opts.Level)))
+	handlerOpts := handlerOptions(lvl)
 
 	var h slog.Handler
-	if c.JSON {
-		h = slog.NewJSONHandler(os.Stdout, opts)
+	if opts.JSON {
+		h = slog.NewJSONHandler(os.Stdout, handlerOpts)
 	} else {
-		h = slog.NewTextHandler(os.Stdout, opts)
+		h = slog.NewTextHandler(os.Stdout, handlerOpts)
 	}
 
 	host, _ := os.Hostname()
-	env := firstNonEmpty(os.Getenv("APP_ENV"), os.Getenv("ENV"), "dev")
 
-	app := strings.TrimSpace(c.AppName)
+	app := strings.TrimSpace(opts.AppName)
 	if app == "" {
 		app = "telegram-bot-scraper"
+	}
+
+	env := strings.TrimSpace(opts.Env)
+	if env == "" {
+		env = "dev"
 	}
 
 	return slog.New(h).With(
@@ -77,13 +86,4 @@ func parseLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
 }

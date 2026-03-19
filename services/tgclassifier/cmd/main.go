@@ -9,20 +9,20 @@ import (
 	"syscall"
 
 	"github.com/faringet/telegram-bot-scraper/pkg/logger"
-	"github.com/faringet/telegram-bot-scraper/services/tgcollector/config"
-	"github.com/faringet/telegram-bot-scraper/services/tgcollector/internal/app"
+	cfg "github.com/faringet/telegram-bot-scraper/services/tgclassifier/config"
+	"github.com/faringet/telegram-bot-scraper/services/tgclassifier/internal/app"
 )
 
 func main() {
-	cfg := config.New()
+	config := cfg.New()
 	log := logger.NewLogger(logger.Options{
-		AppName: cfg.Base.AppName,
-		Env:     cfg.Base.Env,
-		Level:   cfg.Logger.Level,
-		JSON:    cfg.Logger.JSON,
+		AppName: config.Base.AppName,
+		Env:     config.Base.Env,
+		Level:   config.Logger.Level,
+		JSON:    config.Logger.JSON,
 	})
 
-	application, err := app.New(cfg, log)
+	application, err := app.New(config, log)
 	if err != nil {
 		log.Error("app init failed", slog.Any("err", err))
 		os.Exit(1)
