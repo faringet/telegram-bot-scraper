@@ -27,7 +27,6 @@ func (s *Scraper) scanChannel(ctx context.Context, api *tg.Client, username stri
 		return fmt.Errorf("get checkpoint @%s: %w", username, err)
 	}
 
-	//todoo в конфиг
 	const batchLimit = 100
 	scanned := 0
 	hitsNew := 0
@@ -67,15 +66,17 @@ func (s *Scraper) scanChannel(ctx context.Context, api *tg.Client, username stri
 				continue
 			}
 
+			msgID := int64(m.ID)
+
 			scanned++
 			if oldest == 0 || m.ID < oldest {
 				oldest = m.ID
 			}
-			if m.ID > maxSeen {
-				maxSeen = m.ID
+			if msgID > maxSeen {
+				maxSeen = msgID
 			}
 
-			if lastID > 0 && m.ID <= lastID {
+			if lastID > 0 && msgID <= lastID {
 				stopReason = "reached_last_id"
 				scanned = s.cfg.PerChannelMaxScan
 				break
@@ -96,7 +97,7 @@ func (s *Scraper) scanChannel(ctx context.Context, api *tg.Client, username stri
 
 			h := storage.Hit{
 				Channel:     "@" + username,
-				MessageID:   m.ID,
+				MessageID:   msgID,
 				MessageDate: msgTime.UTC(),
 				Text:        text,
 				Link:        fmt.Sprintf("%s/%d", linkBase, m.ID),
@@ -135,7 +136,7 @@ func (s *Scraper) scanChannel(ctx context.Context, api *tg.Client, username stri
 		slog.String("channel", "@"+username),
 		slog.Int("scanned", scanned),
 		slog.Int("hits_new", hitsNew),
-		slog.Int("new_last_id", maxSeen),
+		slog.Int64("new_last_id", maxSeen),
 		slog.String("stop_reason", stopReason),
 	)
 

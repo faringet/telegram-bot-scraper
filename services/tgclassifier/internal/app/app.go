@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	platformpg "github.com/faringet/telegram-bot-scraper/internal/platform/postgres"
 	tgcfg "github.com/faringet/telegram-bot-scraper/services/tgclassifier/config"
 	"github.com/faringet/telegram-bot-scraper/services/tgclassifier/internal/classifier"
 	"github.com/faringet/telegram-bot-scraper/services/tgclassifier/internal/ollama"
@@ -72,13 +73,27 @@ func New(cfg *tgcfg.TGClassifier, log *slog.Logger) (*App, error) {
 func openStore(cfg *tgcfg.TGClassifier) (storage.Store, error) {
 	switch cfg.Storage.Driver {
 	case "sqlite":
-		return storage.NewSQLite(storage.SQLiteConfig{
-			Path:           cfg.Storage.SQLite.Path,
-			BusyTimeout:    cfg.Storage.SQLite.BusyTimeout,
-			JournalModeWAL: cfg.Storage.SQLite.JournalModeWAL,
-		})
+		return nil, errors.New("sqlite storage is not implemented yet; use storage.driver=postgres")
+
 	case "postgres":
-		return nil, errors.New("classifier postgres storage is not implemented yet")
+		db, err := platformpg.Open(platformpg.Config{
+			DSN:             cfg.Storage.Postgres.DSN,
+			MaxOpenConns:    cfg.Storage.Postgres.MaxOpenConns,
+			MaxIdleConns:    cfg.Storage.Postgres.MaxIdleConns,
+			ConnMaxLifetime: cfg.Storage.Postgres.ConnMaxLifetime,
+			ConnMaxIdleTime: cfg.Storage.Postgres.ConnMaxIdleTime,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("open postgres db: %w", err)
+		}
+
+		st, err := storage.NewPostgres(db)
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("create postgres storage: %w", err)
+		}
+		return st, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported storage driver: %s", cfg.Storage.Driver)
 	}
@@ -87,12 +102,24 @@ func openStore(cfg *tgcfg.TGClassifier) (storage.Store, error) {
 func (a *App) Run(ctx context.Context) error {
 	a.log.Info("run started",
 		slog.String("storage_driver", a.cfg.Storage.Driver),
-		slog.String("sqlite_path", a.cfg.Storage.SQLite.Path),
 		slog.String("ollama_url", a.cfg.Ollama.BaseURL),
 		slog.String("model", a.cfg.Ollama.Model),
 		slog.Duration("interval", a.cfg.Classifier.Interval),
 		slog.Int("batch_size", a.cfg.Classifier.BatchSize),
 	)
+
+	switch a.cfg.Storage.Driver {
+	case "sqlite":
+		a.log.Info("sqlite storage configured",
+			slog.String("sqlite_path", a.cfg.Storage.SQLite.Path),
+		)
+	case "postgres":
+		a.log.Info("postgres storage configured",
+			slog.Int("max_open_conns", a.cfg.Storage.Postgres.MaxOpenConns),
+			slog.Int("max_idle_conns", a.cfg.Storage.Postgres.MaxIdleConns),
+		)
+	}
+
 	return a.worker.Run(ctx)
 }
 
