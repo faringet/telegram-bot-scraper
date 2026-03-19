@@ -1,0 +1,3 @@
+ALTER TABLE hits
+    ADD COLUMN IF NOT EXISTS processing_by    TEXT NULL,
+    ADD COLUMN IF NOT EXISTS processing_until TIMESTAMPTZ NULL;

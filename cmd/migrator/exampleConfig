@@ -1,0 +1,24 @@
+app_name: migrator
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  driver: postgres
+  postgres:
+    dsn: ""
+    max_open_conns: 4
+    max_idle_conns: 2
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+migrator:
+  lock_namespace: telegram-bot-scraper
+  lock_resource: schema-migrations
+  startup_timeout: 60s
+  ping_interval: 2s

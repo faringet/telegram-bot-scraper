@@ -3,4 +3,7 @@
 !/data/.gitkeep
 
 # app config (local only)
+services/tgclassifier/config/config.yaml
 services/tgcollector/config/config.yaml
+services/tgnotifier/config/config.yaml
+cmd/migrator/migrator.yaml
