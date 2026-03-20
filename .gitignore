@@ -2,8 +2,17 @@
 /data/*
 !/data/.gitkeep
 
-# app config (local only)
-services/tgclassifier/config/config.yaml
-services/tgcollector/config/config.yaml
-services/tgnotifier/config/config.yaml
-cmd/migrator/migrator.yaml
+# local service configs
+/services/tgcollector/config/config.yaml
+/services/tgcollector/config/config.local.yaml
+
+/services/tgclassifier/config/config.yaml
+/services/tgclassifier/config/config.local.yaml
+
+/services/tgnotifier/config/config.yaml
+/services/tgnotifier/config/config.local.yaml
+
+# local migrator configs
+/cmd/migrator/migrator.yaml
+/cmd/migrator/config.yaml
+/cmd/migrator/config.local.yaml

@@ -30,7 +30,10 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 		return nil, errors.New("notifier app: logger is nil")
 	}
 
-	log = log.With(slog.String("component", "app"))
+	log = log.With(
+		slog.String("layer", "app"),
+		slog.String("module", "notifier.app"),
+	)
 
 	st, err := openStore(cfg)
 	if err != nil {

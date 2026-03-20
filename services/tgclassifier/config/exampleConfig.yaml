@@ -23,12 +23,32 @@ ollama:
   model: qwen2.5:7b
 
 classifier:
+  # Как часто worker просыпается и пытается забрать новую пачку работы
   interval: 5s
+
+  # Максимальное число hit'ов, которые worker забирает за один claim
   batch_size: 20
+
+  # Если worker упал, после истечения lease запись сможет забрать другой worker
   lease: 2m
+
+  # Явный идентификатор worker'а
   worker_id: ""
+
+  # До какой длины обрезаем текст перед отправкой в LLM
   max_text_runes: 1800
+
+  # (LLM, parse, DB update)
   max_retries: 3
+
+  # Бэкоф, очевидно
   retry_backoff: 750ms
+
+  # Если true то берем только не доставленные записи
   only_undelivered: false
+
+  # Путь к внешнему whitelist-файлу компаний (.txt)
   whitelist_path: ""
+
+  # Путь к внешнему prompt template
+  prompt_path: ""

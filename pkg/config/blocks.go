@@ -38,9 +38,8 @@ func (r *Runtime) Validate() error {
 }
 
 type Logger struct {
-	Level   string `mapstructure:"level"`
-	JSON    bool   `mapstructure:"json"`
-	AppName string `mapstructure:"app_name"`
+	Level string `mapstructure:"level"`
+	JSON  bool   `mapstructure:"json"`
 }
 
 func (l *Logger) Validate() error {

@@ -33,7 +33,10 @@ func New(cfg *tgcollector.TGCollector, log *slog.Logger) (*App, error) {
 		return nil, errors.New("collector app: logger is nil")
 	}
 
-	log = log.With(slog.String("component", "app"))
+	log = log.With(
+		slog.String("layer", "app"),
+		slog.String("module", "collector.app"),
+	)
 
 	client, err := mtclient.New(cfg.MTProto, log)
 	if err != nil {

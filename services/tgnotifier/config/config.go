@@ -81,16 +81,19 @@ func (c *TGNotifier) setDefaults() {
 	}
 
 	if c.Storage.Driver == "" {
-		c.Storage.Driver = "sqlite"
+		c.Storage.Driver = "postgres"
 	}
-	if c.Storage.SQLite.Path == "" {
-		c.Storage.SQLite.Path = "data/scraper.db"
+	if c.Storage.Postgres.MaxOpenConns <= 0 {
+		c.Storage.Postgres.MaxOpenConns = 10
 	}
-	if c.Storage.SQLite.BusyTimeout <= 0 {
-		c.Storage.SQLite.BusyTimeout = 5 * time.Second
+	if c.Storage.Postgres.MaxIdleConns < 0 {
+		c.Storage.Postgres.MaxIdleConns = 0
 	}
-	if !c.Storage.SQLite.JournalModeWAL {
-		c.Storage.SQLite.JournalModeWAL = true
+	if c.Storage.Postgres.ConnMaxLifetime < 0 {
+		c.Storage.Postgres.ConnMaxLifetime = 0
+	}
+	if c.Storage.Postgres.ConnMaxIdleTime < 0 {
+		c.Storage.Postgres.ConnMaxIdleTime = 0
 	}
 
 	if c.TelegramBot.PollTimeout <= 0 {
@@ -114,6 +117,9 @@ func (c *TGNotifier) Validate() error {
 	}
 	if err := c.Storage.Validate(); err != nil {
 		return fmt.Errorf("storage: %w", err)
+	}
+	if c.Storage.Driver != "postgres" {
+		return fmt.Errorf("tgnotifier supports only storage.driver=postgres, got %q", c.Storage.Driver)
 	}
 	if err := c.TelegramBot.Validate(true); err != nil {
 		return fmt.Errorf("telegram_bot: %w", err)

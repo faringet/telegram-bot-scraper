@@ -29,7 +29,10 @@ func New(cfg *tgcfg.TGClassifier, log *slog.Logger) (*App, error) {
 		return nil, errors.New("classifier app: logger is nil")
 	}
 
-	log = log.With(slog.String("component", "app"))
+	log = log.With(
+		slog.String("layer", "app"),
+		slog.String("module", "classifier.app"),
+	)
 
 	st, err := openStore(cfg)
 	if err != nil {
@@ -56,6 +59,7 @@ func New(cfg *tgcfg.TGClassifier, log *slog.Logger) (*App, error) {
 		RetryBackoff:    cfg.Classifier.RetryBackoff,
 		OnlyUndelivered: cfg.Classifier.OnlyUndelivered,
 		WhitelistPath:   cfg.Classifier.WhitelistPath,
+		PromptPath:      cfg.Classifier.PromptPath,
 	}, st, oc)
 	if err != nil {
 		_ = st.Close()

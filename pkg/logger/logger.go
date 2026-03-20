@@ -63,12 +63,18 @@ func normalizeCoreAttrs(_ []string, a slog.Attr) slog.Attr {
 			a.Value = slog.StringValue(t.UTC().Format(time.RFC3339Nano))
 		}
 		return a
+
 	case slog.LevelKey:
 		if lv, ok := a.Value.Any().(slog.Level); ok {
 			a.Value = slog.StringValue(strings.ToLower(lv.String()))
 		}
 		return a
+
 	default:
+		if d, ok := a.Value.Any().(time.Duration); ok {
+			a.Value = slog.StringValue(d.String())
+			return a
+		}
 		return a
 	}
 }
