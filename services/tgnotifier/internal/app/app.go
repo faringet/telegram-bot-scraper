@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	platformpg "github.com/faringet/telegram-bot-scraper/internal/platform/postgres"
 	tgcfg "github.com/faringet/telegram-bot-scraper/services/tgnotifier/config"
 	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/internal/botapi"
 	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/internal/storage"
@@ -67,12 +68,27 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 func openStore(cfg *tgcfg.TGNotifier) (storage.Store, error) {
 	switch cfg.Storage.Driver {
 	case "sqlite":
-		return storage.NewSQLite(storage.SQLiteConfig{
-			Path:        cfg.Storage.SQLite.Path,
-			BusyTimeout: cfg.Storage.SQLite.BusyTimeout,
-		})
+		return nil, errors.New("sqlite storage is not implemented yet; use storage.driver=postgres")
+
 	case "postgres":
-		return nil, errors.New("notifier postgres storage is not implemented yet")
+		db, err := platformpg.Open(platformpg.Config{
+			DSN:             cfg.Storage.Postgres.DSN,
+			MaxOpenConns:    cfg.Storage.Postgres.MaxOpenConns,
+			MaxIdleConns:    cfg.Storage.Postgres.MaxIdleConns,
+			ConnMaxLifetime: cfg.Storage.Postgres.ConnMaxLifetime,
+			ConnMaxIdleTime: cfg.Storage.Postgres.ConnMaxIdleTime,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("open postgres db: %w", err)
+		}
+
+		st, err := storage.NewPostgres(db)
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("create postgres storage: %w", err)
+		}
+		return st, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported storage driver: %s", cfg.Storage.Driver)
 	}
@@ -91,15 +107,21 @@ func (a *App) Run(ctx context.Context) error {
 		interval = 2 * time.Minute
 	}
 
-	a.log.Info("run started (daemon mode)",
+	a.log.Info("run started",
 		slog.String("storage_driver", a.cfg.Storage.Driver),
-		slog.String("sqlite_path", a.cfg.Storage.SQLite.Path),
 		slog.Bool("dry_run", a.cfg.Notifier.DryRun),
 		slog.Duration("interval", interval),
 		slog.Int("batch_size", a.cfg.Notifier.BatchSize),
 		slog.Duration("min_delay", a.cfg.Notifier.MinDelay),
 		slog.Int64("supervisor_chat_id", a.cfg.Notifier.SupervisorChatID),
 	)
+
+	if a.cfg.Storage.Driver == "postgres" {
+		a.log.Info("postgres storage configured",
+			slog.Int("max_open_conns", a.cfg.Storage.Postgres.MaxOpenConns),
+			slog.Int("max_idle_conns", a.cfg.Storage.Postgres.MaxIdleConns),
+		)
+	}
 
 	if err := a.bot.Ping(ctx); err != nil {
 		a.log.Error("bot ping failed", slog.Any("err", err))
@@ -111,6 +133,7 @@ func (a *App) Run(ctx context.Context) error {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 
+	tick := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -118,30 +141,51 @@ func (a *App) Run(ctx context.Context) error {
 			return ctx.Err()
 
 		case <-t.C:
-			a.runTick(ctx, "scheduled")
+			tick++
+			a.runTick(ctx, fmt.Sprintf("scheduled#%d", tick))
 		}
 	}
 }
 
 func (a *App) runTick(ctx context.Context, reason string) {
-	if a == nil || a.notifier == nil {
-		a.log.Error("run tick skipped: notifier is nil")
-		return
-	}
+	start := time.Now()
+
+	a.log.Info("notify tick", slog.String("reason", reason))
 
 	res, err := a.notifier.Process(ctx, reason)
 	if err != nil {
-		a.log.Error("tick failed",
+		a.log.Error("notify tick failed",
 			slog.String("reason", reason),
+			slog.Duration("duration", time.Since(start)),
 			slog.Any("err", err),
 		)
 		return
 	}
 
-	a.log.Info("tick finished",
+	if res.Total == 0 {
+		a.log.Info("nothing to deliver",
+			slog.String("reason", reason),
+			slog.Duration("duration", time.Since(start)),
+		)
+		return
+	}
+
+	if a.cfg.Notifier.DryRun {
+		a.log.Warn("dry_run enabled: delivered but NOT marked",
+			slog.String("reason", reason),
+			slog.Int("sent", res.Sent),
+			slog.Int("marked", 0),
+			slog.Int("total_in_batch", res.Total),
+			slog.Duration("duration", time.Since(start)),
+		)
+		return
+	}
+
+	a.log.Info("deliver batch done",
 		slog.String("reason", reason),
-		slog.Int("total", res.Total),
 		slog.Int("sent", res.Sent),
 		slog.Int("marked", res.Marked),
+		slog.Int("total_in_batch", res.Total),
+		slog.Duration("duration", time.Since(start)),
 	)
 }

@@ -3,17 +3,19 @@ env: dev
 
 logger:
   level: info
-  json: false
+  json: true
 
 runtime:
   shutdown_timeout: 15s
 
 storage:
-  driver: sqlite
-  sqlite:
-    path: data/scraper.db
-    busy_timeout: 5s
-    journal_mode_wal: true
+  driver: postgres
+  postgres:
+    dsn: ""
+    max_open_conns: 10
+    max_idle_conns: 5
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
 
 telegram_bot:
   token: ""
