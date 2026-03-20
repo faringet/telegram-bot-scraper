@@ -180,14 +180,15 @@ func (t *TelegramBot) Validate(enabled bool) error {
 }
 
 type MTProto struct {
-	APIID     int    `mapstructure:"api_id"`
-	APIHash   string `mapstructure:"api_hash"`
-	Phone     string `mapstructure:"phone"`
-	Password  string `mapstructure:"password"`
-	AppID     string `mapstructure:"app_id"`
-	Session   string `mapstructure:"session"`
-	Device    Device `mapstructure:"device"`
-	RateLimit Rate   `mapstructure:"rate_limit"`
+	APIID                int    `mapstructure:"api_id"`
+	APIHash              string `mapstructure:"api_hash"`
+	Phone                string `mapstructure:"phone"`
+	Password             string `mapstructure:"password"`
+	AppID                string `mapstructure:"app_id"`
+	Session              string `mapstructure:"session"`
+	AllowInteractiveAuth bool   `mapstructure:"allow_interactive_auth"`
+	Device               Device `mapstructure:"device"`
+	RateLimit            Rate   `mapstructure:"rate_limit"`
 }
 
 type Device struct {

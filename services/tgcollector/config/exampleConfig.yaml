@@ -18,12 +18,22 @@ storage:
     conn_max_idle_time: 5m
 
 mtproto:
+  # Забираем с my.telegram.org.
   api_id: 12345678
-  api_hash: "..."
-  session: "data/session.json"
 
+  # Забираем с my.telegram.org.
+  api_hash: "..."
+
+  # При первом успешном bootstrap запуске все будет
+  session: "runtime/tgcollector/session.json"
   phone: "+7..."
+
+  # 2FA
   password: ""
+
+  # Первый запуск на новой машине -> true
+  # для обычной работы (когда уже есть session.json)  -> false
+  allow_interactive_auth: false
 
   device:
     model: "PC"
@@ -33,6 +43,7 @@ mtproto:
     system_lang: "ru"
 
   rate_limit:
+    # Задержка между MTProto запросами (чтобы не нарваться на бан)
     min_delay: 3s
     concurrency: 1
 
@@ -44,10 +55,23 @@ scrape:
     - "test"
     - "leak"
 
+  # Насколько глубоко в прошлое смотреть сообщения при сканировании
+  # 168h = 7 дней.
   lookback: 168h
+
+  # Окно хранения hit'ов для дедупликации и последующей очистки
+  # 720h = 30 дней.
   dedup_window: 720h
 
+  # Максимальное число сообщений, которое collector просматривает
+  # за один проход по одному каналу.
   per_channel_max_scan: 300
+
+  # Минимальная пауза между запросами истории сообщений внутри канала
   min_delay: 2s
+
+  # Пауза между обработкой разных каналов.
   between_channels_delay: 3s
+
+  # Как часто collector запускает очередной полный цикл обхода каналов
   interval: 3m

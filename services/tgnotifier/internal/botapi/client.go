@@ -18,10 +18,17 @@ type Client struct {
 }
 
 func New(c cfg.TelegramBot, log *slog.Logger) (*Client, error) {
+	if log == nil {
+		log = slog.Default()
+	}
 	if strings.TrimSpace(c.Token) == "" {
 		return nil, errors.New("botapi: token is required")
 	}
-	log = log.With(slog.String("component", "tgnotifier.botapi"))
+
+	log = log.With(
+		slog.String("layer", "transport"),
+		slog.String("module", "notifier.botapi"),
+	)
 
 	bot, err := tgbotapi.NewBotAPI(c.Token)
 	if err != nil {
@@ -36,19 +43,21 @@ func New(c cfg.TelegramBot, log *slog.Logger) (*Client, error) {
 	}, nil
 }
 
-//func (c *Client) Username() string {
-//	if c == nil || c.bot == nil || c.bot.Self.UserName == "" {
-//		return ""
-//	}
-//	return "@" + c.bot.Self.UserName
-//}
-
-func (c *Client) SendText(ctx context.Context, chatID int64, text string, parseMode string, disablePreview bool) (messageID int, err error) {
-
+func (c *Client) SendText(ctx context.Context, chatID int64, text string, parseMode string, disablePreview bool) (int, error) {
+	if c == nil || c.bot == nil {
+		return 0, errors.New("botapi: client is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	if chatID == 0 {
 		return 0, errors.New("botapi: chatID is required")
 	}
+
 	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, errors.New("botapi: text is required")
+	}
 
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.DisableWebPagePreview = disablePreview
@@ -56,58 +65,39 @@ func (c *Client) SendText(ctx context.Context, chatID int64, text string, parseM
 		msg.ParseMode = parseMode
 	}
 
-	type resp struct {
-		m tgbotapi.Message
-		e error
+	sent, err := c.bot.Send(msg)
+	if err != nil {
+		return 0, fmt.Errorf("botapi: send: %w", err)
 	}
-	ch := make(chan resp, 1)
 
-	go func() {
-		m, e := c.bot.Send(msg)
-		ch <- resp{m: m, e: e}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return 0, ctx.Err()
-	case r := <-ch:
-		if r.e != nil {
-			return 0, fmt.Errorf("botapi: send: %w", r.e)
-		}
-		return r.m.MessageID, nil
-	}
+	return sent.MessageID, nil
 }
 
 func (c *Client) Ping(ctx context.Context) error {
-	type resp struct {
-		u tgbotapi.User
-		e error
+	if c == nil || c.bot == nil {
+		return errors.New("botapi: client is nil")
 	}
-	ch := make(chan resp, 1)
-	go func() {
-		u, e := c.bot.GetMe()
-		ch <- resp{u: u, e: e}
-	}()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case r := <-ch:
-		if r.e != nil {
-			return fmt.Errorf("botapi: getMe: %w", r.e)
-		}
-		c.log.Info("botapi ready",
-			slog.String("username", "@"+r.u.UserName),
-			slog.Int64("id", r.u.ID),
-		)
-		return nil
+	u, err := c.bot.GetMe()
+	if err != nil {
+		return fmt.Errorf("botapi: getMe: %w", err)
 	}
+
+	c.log.Info("botapi ready",
+		slog.String("username", "@"+u.UserName),
+		slog.Int64("id", u.ID),
+	)
+	return nil
 }
 
 func SleepCtx(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
 	}
+
 	t := time.NewTimer(d)
 	defer t.Stop()
 

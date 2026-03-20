@@ -44,14 +44,16 @@ func New(cfg Config, log *slog.Logger, store storage.Store) *Scraper {
 	}
 
 	return &Scraper{
-		cfg:   cfg,
-		log:   log.With(slog.String("component", "scraper")),
+		cfg: cfg,
+		log: log.With(
+			slog.String("layer", "worker"),
+			slog.String("module", "collector.scraper"),
+		),
 		store: store,
 	}
 }
 
 func (s *Scraper) Crawl(ctx context.Context, td *telegram.Client) error {
-
 	keywords := normalizeKeywords(s.cfg.Keywords)
 	api := tg.NewClient(td)
 

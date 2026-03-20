@@ -30,7 +30,8 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 		return nil, errors.New("notifier app: logger is nil")
 	}
 
-	log = log.With(
+	rootLog := log
+	appLog := log.With(
 		slog.String("layer", "app"),
 		slog.String("module", "notifier.app"),
 	)
@@ -40,14 +41,14 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
 
-	b, err := botapi.New(cfg.TelegramBot, log)
+	b, err := botapi.New(cfg.TelegramBot, rootLog)
 	if err != nil {
 		_ = st.Close()
 		return nil, fmt.Errorf("create bot client: %w", err)
 	}
 
 	n := NewNotifier(NotifierDeps{
-		Log:   log,
+		Log:   rootLog,
 		Store: st,
 		Bot:   b,
 		Cfg: NotifierConfig{
@@ -61,7 +62,7 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 
 	return &App{
 		cfg:      cfg,
-		log:      log,
+		log:      appLog,
 		store:    st,
 		bot:      b,
 		notifier: n,
@@ -69,32 +70,31 @@ func New(cfg *tgcfg.TGNotifier, log *slog.Logger) (*App, error) {
 }
 
 func openStore(cfg *tgcfg.TGNotifier) (storage.Store, error) {
-	switch cfg.Storage.Driver {
-	case "sqlite":
-		return nil, errors.New("sqlite storage is not implemented yet; use storage.driver=postgres")
-
-	case "postgres":
-		db, err := platformpg.Open(platformpg.Config{
-			DSN:             cfg.Storage.Postgres.DSN,
-			MaxOpenConns:    cfg.Storage.Postgres.MaxOpenConns,
-			MaxIdleConns:    cfg.Storage.Postgres.MaxIdleConns,
-			ConnMaxLifetime: cfg.Storage.Postgres.ConnMaxLifetime,
-			ConnMaxIdleTime: cfg.Storage.Postgres.ConnMaxIdleTime,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("open postgres db: %w", err)
-		}
-
-		st, err := storage.NewPostgres(db)
-		if err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("create postgres storage: %w", err)
-		}
-		return st, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported storage driver: %s", cfg.Storage.Driver)
+	if cfg == nil {
+		return nil, errors.New("notifier app: config is nil")
 	}
+
+	if cfg.Storage.Driver != "postgres" {
+		return nil, fmt.Errorf("unsupported storage driver for tgnotifier: %s", cfg.Storage.Driver)
+	}
+
+	db, err := platformpg.Open(platformpg.Config{
+		DSN:             cfg.Storage.Postgres.DSN,
+		MaxOpenConns:    cfg.Storage.Postgres.MaxOpenConns,
+		MaxIdleConns:    cfg.Storage.Postgres.MaxIdleConns,
+		ConnMaxLifetime: cfg.Storage.Postgres.ConnMaxLifetime,
+		ConnMaxIdleTime: cfg.Storage.Postgres.ConnMaxIdleTime,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open postgres db: %w", err)
+	}
+
+	st, err := storage.NewPostgres(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("create postgres storage: %w", err)
+	}
+	return st, nil
 }
 
 func (a *App) Close() error {
@@ -117,14 +117,9 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Int("batch_size", a.cfg.Notifier.BatchSize),
 		slog.Duration("min_delay", a.cfg.Notifier.MinDelay),
 		slog.Int64("supervisor_chat_id", a.cfg.Notifier.SupervisorChatID),
+		slog.Int("max_open_conns", a.cfg.Storage.Postgres.MaxOpenConns),
+		slog.Int("max_idle_conns", a.cfg.Storage.Postgres.MaxIdleConns),
 	)
-
-	if a.cfg.Storage.Driver == "postgres" {
-		a.log.Info("postgres storage configured",
-			slog.Int("max_open_conns", a.cfg.Storage.Postgres.MaxOpenConns),
-			slog.Int("max_idle_conns", a.cfg.Storage.Postgres.MaxIdleConns),
-		)
-	}
 
 	if err := a.bot.Ping(ctx); err != nil {
 		a.log.Error("bot ping failed", slog.Any("err", err))

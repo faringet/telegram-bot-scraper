@@ -20,11 +20,11 @@ func authorizeIfNeeded(ctx context.Context, td *telegram.Client, c cfg.MTProto, 
 	if td == nil {
 		return errors.New("mtproto: telegram client is nil")
 	}
-	if log == nil {
-		log = slog.Default()
-	}
 
 	phone := strings.TrimSpace(c.Phone)
+	if phone == "" && !c.AllowInteractiveAuth {
+		return errors.New("mtproto: phone is required when interactive auth is disabled")
+	}
 	if phone == "" {
 		phone = readLine("Enter phone: ")
 	}
@@ -34,6 +34,11 @@ func authorizeIfNeeded(ctx context.Context, td *telegram.Client, c cfg.MTProto, 
 
 	codeAuth := auth.CodeAuthenticatorFunc(func(ctx context.Context, sent *tg.AuthSentCode) (string, error) {
 		_ = sent
+
+		if !c.AllowInteractiveAuth {
+			return "", errors.New("mtproto: interactive auth is disabled; bootstrap session first")
+		}
+
 		code := readLine("Enter code: ")
 		if code == "" {
 			return "", errors.New("mtproto: empty code")
@@ -57,7 +62,10 @@ func authorizeIfNeeded(ctx context.Context, td *telegram.Client, c cfg.MTProto, 
 		return fmt.Errorf("mtproto auth: %w", err)
 	}
 
-	log.Info("mtproto authorized", slog.String("session", c.Session))
+	log.Info("mtproto authorized",
+		slog.String("session", c.Session),
+		slog.Bool("interactive_auth", c.AllowInteractiveAuth),
+	)
 	return nil
 }
 

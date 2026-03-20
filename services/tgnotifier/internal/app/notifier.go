@@ -24,8 +24,7 @@ type NotifierConfig struct {
 	BatchSize        int
 	MinDelay         time.Duration
 	DryRun           bool
-
-	MaxTextRunes int
+	MaxTextRunes     int
 }
 
 type NotifierDeps struct {
@@ -37,14 +36,29 @@ type NotifierDeps struct {
 
 func NewNotifier(d NotifierDeps) *Notifier {
 	log := d.Log
-	log = log.With(slog.String("component", "notifier"))
+	if log == nil {
+		log = slog.Default()
+	}
+
+	cfg := d.Cfg
+	if cfg.BatchSize <= 0 {
+		cfg.BatchSize = 20
+	}
+	if cfg.MaxTextRunes <= 0 {
+		cfg.MaxTextRunes = 200
+	}
+
+	log = log.With(
+		slog.String("layer", "worker"),
+		slog.String("module", "notifier.worker"),
+	)
 
 	return &Notifier{
 		log:   log,
 		store: d.Store,
 		bot:   d.Bot,
-		cfg:   d.Cfg,
-		fmt:   NewFormatter(d.Cfg.MaxTextRunes),
+		cfg:   cfg,
+		fmt:   NewFormatter(cfg.MaxTextRunes),
 	}
 }
 

@@ -9,7 +9,7 @@
 /services/tgclassifier/config/config.yaml
 /services/tgclassifier/config/config.local.yaml
 
-/services/tgnotifier/config/config.yaml
+/services/tgnotifier/config/config121212.yaml
 /services/tgnotifier/config/config.local.yaml
 
 # local migrator configs
