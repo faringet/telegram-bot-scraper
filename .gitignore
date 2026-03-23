@@ -9,8 +9,11 @@
 /services/tgclassifier/config/config.yaml
 /services/tgclassifier/config/config.local.yaml
 
-/services/tgnotifier/config/config121212.yaml
+/services/tgnotifier/config/config.yaml
 /services/tgnotifier/config/config.local.yaml
+
+/services/tgsearchbot/config/config.yaml
+/services/tgsearchbot/config/config.local.yaml
 
 # local migrator configs
 /cmd/migrator/migrator.yaml

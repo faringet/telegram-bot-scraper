@@ -1,0 +1,42 @@
+app_name: tg-searchbot
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  driver: postgres
+  postgres:
+    dsn: ""
+    max_open_conns: 10
+    max_idle_conns: 5
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+telegram_bot:
+  token: ""
+  debug: false
+  use_webhook: false
+  poll_timeout: 30s
+
+access:
+  # Если список пустой - доступ открыт всем юзерам
+  # Если заполнен — только этим user_id
+  allowed_user_ids:
+    - 123456789
+
+  # Если список пустой - не ограничиваем по chat_id
+  # Если заполнен - отвечает только в этих чатах
+  allowed_chat_ids: []
+
+  deny_message: "⛔ Доступ к боту ограничен."
+
+search:
+  default_lookback: 168h
+  max_results: 10
+  max_query_runes: 120
+  max_text_runes: 300
