@@ -42,10 +42,10 @@ func NewNotifier(d NotifierDeps) *Notifier {
 
 	cfg := d.Cfg
 	if cfg.BatchSize <= 0 {
-		cfg.BatchSize = 20
+		cfg.BatchSize = 50
 	}
 	if cfg.MaxTextRunes <= 0 {
-		cfg.MaxTextRunes = 200
+		cfg.MaxTextRunes = 300
 	}
 
 	log = log.With(
@@ -62,69 +62,99 @@ func NewNotifier(d NotifierDeps) *Notifier {
 	}
 }
 
-func (n *Notifier) Process(ctx context.Context, reason string) (Result, error) {
-	hits, err := n.store.ListUndelivered(ctx, n.cfg.BatchSize)
-	if err != nil {
-		return Result{}, fmt.Errorf("list undelivered: %w", err)
-	}
+func (n *Notifier) ProcessWindow(ctx context.Context, reason string, cutoff time.Time) (Result, error) {
+	total := Result{}
+	attempted := make(map[int64]struct{})
 
-	res := Result{Total: len(hits)}
-	if res.Total == 0 {
-		return res, nil
-	}
+	for {
+		fetchLimit := n.cfg.BatchSize + len(attempted)
+		if fetchLimit < n.cfg.BatchSize {
+			fetchLimit = n.cfg.BatchSize
+		}
 
-	n.log.Info("deliver batch start",
-		slog.String("reason", reason),
-		slog.Int("count", res.Total),
-	)
+		hits, err := n.store.ListUndeliveredBefore(ctx, fetchLimit, cutoff)
+		if err != nil {
+			return total, fmt.Errorf("list undelivered before: %w", err)
+		}
 
-	deliveredIDs := make([]int64, 0, len(hits))
+		batch := takeFreshHits(hits, attempted, n.cfg.BatchSize)
+		if len(batch) == 0 {
+			return total, nil
+		}
 
-	for _, h := range hits {
-		msg := n.fmt.HitMessage(h)
-
-		_, sendErr := n.bot.SendText(
-			ctx,
-			n.cfg.SupervisorChatID,
-			msg,
-			"HTML",
-			true,
+		n.log.Info("deliver batch start",
+			slog.String("reason", reason),
+			slog.Time("cutoff", cutoff.UTC()),
+			slog.Int("count", len(batch)),
 		)
-		if sendErr != nil {
-			n.log.Error("send failed",
-				slog.String("reason", reason),
-				slog.Int64("hit_id", h.ID),
-				slog.String("channel", h.Channel),
-				slog.Int("message_id", h.MessageID),
-				slog.Any("err", sendErr),
+
+		deliveredIDs := make([]int64, 0, len(batch))
+		for _, h := range batch {
+			attempted[h.ID] = struct{}{}
+			total.Total++
+
+			msg := n.fmt.HitMessage(h)
+
+			_, sendErr := n.bot.SendText(
+				ctx,
+				n.cfg.SupervisorChatID,
+				msg,
+				"HTML",
+				true,
 			)
+			if sendErr != nil {
+				n.log.Error("send failed",
+					slog.String("reason", reason),
+					slog.Int64("hit_id", h.ID),
+					slog.String("channel", h.Channel),
+					slog.Int64("message_id", h.MessageID),
+					slog.Any("err", sendErr),
+				)
+				continue
+			}
+
+			total.Sent++
+			deliveredIDs = append(deliveredIDs, h.ID)
+
+			if err := botapi.SleepCtx(ctx, n.cfg.MinDelay); err != nil {
+				n.log.Warn("interrupted by ctx",
+					slog.String("reason", reason),
+					slog.Any("err", err),
+				)
+				break
+			}
+		}
+
+		if n.cfg.DryRun {
 			continue
 		}
 
-		res.Sent++
-		deliveredIDs = append(deliveredIDs, h.ID)
+		if len(deliveredIDs) == 0 {
+			// Защита от вечной карусели на битых строках
+			// Что уже пытались отправить в этом окне повторно не гоняем
+			continue
+		}
 
-		if err := botapi.SleepCtx(ctx, n.cfg.MinDelay); err != nil {
-			n.log.Warn("interrupted by ctx",
-				slog.String("reason", reason),
-				slog.Any("err", err),
-			)
+		if err := n.store.MarkDelivered(ctx, deliveredIDs); err != nil {
+			return total, fmt.Errorf("mark delivered: %w", err)
+		}
+		total.Marked += len(deliveredIDs)
+	}
+}
+
+func takeFreshHits(hits []storage.Hit, attempted map[int64]struct{}, limit int) []storage.Hit {
+	if limit <= 0 {
+		limit = len(hits)
+	}
+	out := make([]storage.Hit, 0, limit)
+	for _, h := range hits {
+		if _, seen := attempted[h.ID]; seen {
+			continue
+		}
+		out = append(out, h)
+		if len(out) >= limit {
 			break
 		}
 	}
-
-	if len(deliveredIDs) == 0 {
-		return res, nil
-	}
-
-	if n.cfg.DryRun {
-		return res, nil
-	}
-
-	if err := n.store.MarkDelivered(ctx, deliveredIDs); err != nil {
-		return res, fmt.Errorf("mark delivered: %w", err)
-	}
-
-	res.Marked = len(deliveredIDs)
-	return res, nil
+	return out
 }

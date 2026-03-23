@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Postgres struct {
@@ -26,7 +27,7 @@ func (s *Postgres) Close() error {
 	return s.db.Close()
 }
 
-func (s *Postgres) ListUndelivered(ctx context.Context, limit int) ([]Hit, error) {
+func (s *Postgres) ListUndeliveredBefore(ctx context.Context, limit int, classifiedBefore time.Time) ([]Hit, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("notifier postgres storage: db is nil")
 	}
@@ -53,11 +54,12 @@ FROM hits
 WHERE delivered_at IS NULL
   AND category IS NOT NULL
   AND classified_at IS NOT NULL
-ORDER BY message_date DESC
-LIMIT $1
-`, limit)
+  AND classified_at <= $1
+ORDER BY classified_at ASC, message_date ASC, id ASC
+LIMIT $2
+`, classifiedBefore.UTC(), limit)
 	if err != nil {
-		return nil, fmt.Errorf("notifier postgres list undelivered: %w", err)
+		return nil, fmt.Errorf("notifier postgres list undelivered before: %w", err)
 	}
 	defer rows.Close()
 

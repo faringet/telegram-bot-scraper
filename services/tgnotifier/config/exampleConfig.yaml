@@ -27,6 +27,11 @@ notifier:
   # Куда/кому сыпятся сообщения
   supervisor_chat_id: 12345678
 
+  schedule:
+    timezone: "Europe/Moscow"
+    daily_at: "09:00"
+    catch_up_on_start: true
+
   # Как часто notifier просыпается и проверяет БД
   interval: 30s
 

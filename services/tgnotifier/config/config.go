@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	pcfg "github.com/faringet/telegram-bot-scraper/pkg/config"
@@ -18,27 +19,70 @@ type TGNotifier struct {
 	Notifier Notifier `mapstructure:"notifier"`
 }
 
+type Schedule struct {
+	Timezone       string `mapstructure:"timezone"`
+	DailyAt        string `mapstructure:"daily_at"`
+	CatchUpOnStart bool   `mapstructure:"catch_up_on_start"`
+}
+
 type Notifier struct {
 	SupervisorChatID int64         `mapstructure:"supervisor_chat_id"`
-	Interval         time.Duration `mapstructure:"interval"`
+	Schedule         Schedule      `mapstructure:"schedule"`
 	BatchSize        int           `mapstructure:"batch_size"`
 	MinDelay         time.Duration `mapstructure:"min_delay"`
 	MaxTextRunes     int           `mapstructure:"max_text_runes"`
 	DryRun           bool          `mapstructure:"dry_run"`
 }
 
-func (n *Notifier) setDefaults() {
-	if n.Interval <= 0 {
-		n.Interval = 2 * time.Minute
+func (s *Schedule) setDefaults() {
+	if strings.TrimSpace(s.Timezone) == "" {
+		s.Timezone = "Europe/Moscow"
 	}
+	if strings.TrimSpace(s.DailyAt) == "" {
+		s.DailyAt = "09:00"
+	}
+
+	// todo фикс этого костыля
+	// По умолчанию будет true
+	// если сервис не сработал в 09:00, а поднялся позже,
+	// он все равно должен догнать и отправить сегодняшнюю пачку.
+	if !s.CatchUpOnStart {
+		// Пока костыль, но тем не менее тут спецом ничего не делаю
+		// непонятно это юзер реально выбрал false
+		// или просто поле не было задано
+	}
+}
+
+func (s *Schedule) Validate() error {
+	if s == nil {
+		return errors.New("schedule config is nil")
+	}
+	if strings.TrimSpace(s.Timezone) == "" {
+		return errors.New("notifier.schedule.timezone is required")
+	}
+	if _, err := time.LoadLocation(s.Timezone); err != nil {
+		return fmt.Errorf("notifier.schedule.timezone is invalid: %w", err)
+	}
+	if strings.TrimSpace(s.DailyAt) == "" {
+		return errors.New("notifier.schedule.daily_at is required")
+	}
+	if _, err := time.Parse("15:04", s.DailyAt); err != nil {
+		return fmt.Errorf("notifier.schedule.daily_at must be HH:MM, got %q", s.DailyAt)
+	}
+	return nil
+}
+
+func (n *Notifier) setDefaults() {
+	n.Schedule.setDefaults()
+
 	if n.BatchSize <= 0 {
-		n.BatchSize = 20
+		n.BatchSize = 50
 	}
 	if n.MinDelay == 0 {
-		n.MinDelay = 200 * time.Millisecond
+		n.MinDelay = 500 * time.Millisecond
 	}
 	if n.MaxTextRunes <= 0 {
-		n.MaxTextRunes = 200
+		n.MaxTextRunes = 300
 	}
 }
 
@@ -49,8 +93,8 @@ func (n *Notifier) Validate() error {
 	if n.SupervisorChatID == 0 {
 		return errors.New("notifier.supervisor_chat_id is required")
 	}
-	if n.Interval <= 0 {
-		return errors.New("notifier.interval must be > 0")
+	if err := n.Schedule.Validate(); err != nil {
+		return err
 	}
 	if n.BatchSize <= 0 {
 		return errors.New("notifier.batch_size must be > 0")
@@ -98,6 +142,14 @@ func (c *TGNotifier) setDefaults() {
 
 	if c.TelegramBot.PollTimeout <= 0 {
 		c.TelegramBot.PollTimeout = 30 * time.Second
+	}
+
+	// todo фикс этого костыля
+	// По умолчанию включаею догонялку
+	// Но тут надо помнить что с обычным bool нельзя нормально отличить
+	// "не задали значение" от "юзер явно поставил false"
+	if !c.Notifier.Schedule.CatchUpOnStart {
+		c.Notifier.Schedule.CatchUpOnStart = true
 	}
 
 	c.Notifier.setDefaults()

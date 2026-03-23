@@ -105,15 +105,20 @@ func (a *App) Close() error {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	interval := a.cfg.Notifier.Interval
-	if interval <= 0 {
-		interval = 2 * time.Minute
+	loc, hour, minute, err := parseNotifierSchedule(
+		a.cfg.Notifier.Schedule.Timezone,
+		a.cfg.Notifier.Schedule.DailyAt,
+	)
+	if err != nil {
+		return err
 	}
 
 	a.log.Info("run started",
 		slog.String("storage_driver", a.cfg.Storage.Driver),
 		slog.Bool("dry_run", a.cfg.Notifier.DryRun),
-		slog.Duration("interval", interval),
+		slog.String("timezone", loc.String()),
+		slog.String("daily_at", a.cfg.Notifier.Schedule.DailyAt),
+		slog.Bool("catch_up_on_start", a.cfg.Notifier.Schedule.CatchUpOnStart),
 		slog.Int("batch_size", a.cfg.Notifier.BatchSize),
 		slog.Duration("min_delay", a.cfg.Notifier.MinDelay),
 		slog.Int64("supervisor_chat_id", a.cfg.Notifier.SupervisorChatID),
@@ -126,64 +131,87 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 
-	a.runTick(ctx, "startup")
+	now := time.Now().In(loc)
+	if a.cfg.Notifier.Schedule.CatchUpOnStart {
+		cutoff := scheduledTimeForDate(now, hour, minute)
+		if !now.Before(cutoff) {
+			a.runWindow(ctx, "catchup_on_start", cutoff)
+		}
+	}
 
-	t := time.NewTicker(interval)
-	defer t.Stop()
-
-	tick := 0
 	for {
+		next := nextScheduledTime(time.Now().In(loc), hour, minute)
+		wait := time.Until(next)
+
+		a.log.Info("next scheduled delivery",
+			slog.Time("next_run", next),
+			slog.Duration("wait", wait),
+		)
+
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			a.log.Info("shutdown", slog.Any("err", ctx.Err()))
 			return ctx.Err()
-
-		case <-t.C:
-			tick++
-			a.runTick(ctx, fmt.Sprintf("scheduled#%d", tick))
+		case <-timer.C:
+			a.runWindow(ctx, "scheduled", next)
 		}
 	}
 }
 
-func (a *App) runTick(ctx context.Context, reason string) {
+func (a *App) runWindow(ctx context.Context, reason string, cutoff time.Time) {
 	start := time.Now()
 
-	a.log.Info("notify tick", slog.String("reason", reason))
+	a.log.Info("notify window start",
+		slog.String("reason", reason),
+		slog.Time("cutoff", cutoff.UTC()),
+	)
 
-	res, err := a.notifier.Process(ctx, reason)
+	res, err := a.notifier.ProcessWindow(ctx, reason, cutoff)
 	if err != nil {
-		a.log.Error("notify tick failed",
+		a.log.Error("notify window failed",
 			slog.String("reason", reason),
+			slog.Time("cutoff", cutoff.UTC()),
 			slog.Duration("duration", time.Since(start)),
 			slog.Any("err", err),
 		)
 		return
 	}
 
-	if res.Total == 0 {
-		a.log.Info("nothing to deliver",
-			slog.String("reason", reason),
-			slog.Duration("duration", time.Since(start)),
-		)
-		return
-	}
-
-	if a.cfg.Notifier.DryRun {
-		a.log.Warn("dry_run enabled: delivered but NOT marked",
-			slog.String("reason", reason),
-			slog.Int("sent", res.Sent),
-			slog.Int("marked", 0),
-			slog.Int("total_in_batch", res.Total),
-			slog.Duration("duration", time.Since(start)),
-		)
-		return
-	}
-
-	a.log.Info("deliver batch done",
+	a.log.Info("notify window done",
 		slog.String("reason", reason),
+		slog.Time("cutoff", cutoff.UTC()),
+		slog.Int("total", res.Total),
 		slog.Int("sent", res.Sent),
 		slog.Int("marked", res.Marked),
-		slog.Int("total_in_batch", res.Total),
 		slog.Duration("duration", time.Since(start)),
 	)
+}
+
+func parseNotifierSchedule(timezone string, dailyAt string) (*time.Location, int, int, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("load notifier timezone: %w", err)
+	}
+
+	tm, err := time.Parse("15:04", dailyAt)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("parse notifier daily_at: %w", err)
+	}
+
+	return loc, tm.Hour(), tm.Minute(), nil
+}
+
+func scheduledTimeForDate(t time.Time, hour, minute int) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, 0, 0, t.Location())
+}
+
+func nextScheduledTime(now time.Time, hour, minute int) time.Time {
+	today := scheduledTimeForDate(now, hour, minute)
+	if now.Before(today) {
+		return today
+	}
+	tomorrow := now.AddDate(0, 0, 1)
+	return scheduledTimeForDate(tomorrow, hour, minute)
 }

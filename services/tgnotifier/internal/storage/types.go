@@ -9,7 +9,7 @@ import (
 type Hit struct {
 	ID            int64
 	Channel       string
-	MessageID     int
+	MessageID     int64
 	MessageDate   time.Time
 	Text          string
 	Link          string
@@ -23,7 +23,7 @@ type Hit struct {
 }
 
 type Store interface {
-	ListUndelivered(ctx context.Context, limit int) ([]Hit, error)
+	ListUndeliveredBefore(ctx context.Context, limit int, classifiedBefore time.Time) ([]Hit, error)
 	MarkDelivered(ctx context.Context, ids []int64) error
 	Close() error
 }
