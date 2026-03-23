@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/faringet/telegram-bot-scraper/internal/newsfmt"
 	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/internal/botapi"
 	"github.com/faringet/telegram-bot-scraper/services/tgnotifier/internal/storage"
 )
@@ -16,7 +17,7 @@ type Notifier struct {
 	store storage.Store
 	bot   *botapi.Client
 	cfg   NotifierConfig
-	fmt   *Formatter
+	fmt   *newsfmt.Formatter
 }
 
 type NotifierConfig struct {
@@ -58,7 +59,7 @@ func NewNotifier(d NotifierDeps) *Notifier {
 		store: d.Store,
 		bot:   d.Bot,
 		cfg:   cfg,
-		fmt:   NewFormatter(cfg.MaxTextRunes),
+		fmt:   newsfmt.NewFormatter(cfg.MaxTextRunes),
 	}
 }
 
@@ -93,7 +94,7 @@ func (n *Notifier) ProcessWindow(ctx context.Context, reason string, cutoff time
 			attempted[h.ID] = struct{}{}
 			total.Total++
 
-			msg := n.fmt.HitMessage(h)
+			msg := n.fmt.HitMessage(hitToView(h))
 
 			_, sendErr := n.bot.SendText(
 				ctx,
@@ -146,6 +147,7 @@ func takeFreshHits(hits []storage.Hit, attempted map[int64]struct{}, limit int) 
 	if limit <= 0 {
 		limit = len(hits)
 	}
+
 	out := make([]storage.Hit, 0, limit)
 	for _, h := range hits {
 		if _, seen := attempted[h.ID]; seen {
@@ -157,4 +159,40 @@ func takeFreshHits(hits []storage.Hit, attempted map[int64]struct{}, limit int) 
 		}
 	}
 	return out
+}
+
+func hitToView(h storage.Hit) newsfmt.HitView {
+	var reason string
+	if h.LLMReason.Valid {
+		reason = h.LLMReason.String
+	}
+
+	var category string
+	if h.Category.Valid {
+		category = h.Category.String
+	}
+
+	var confidence *float64
+	if h.LLMConfidence.Valid {
+		v := h.LLMConfidence.Float64
+		confidence = &v
+	}
+
+	var messageDate time.Time
+	if !h.MessageDate.IsZero() {
+		messageDate = h.MessageDate.UTC()
+	}
+
+	return newsfmt.HitView{
+		ID:          h.ID,
+		Channel:     h.Channel,
+		MessageID:   h.MessageID,
+		MessageDate: messageDate,
+		Text:        h.Text,
+		Link:        h.Link,
+		Keyword:     h.Keyword,
+		Category:    category,
+		Reason:      reason,
+		Confidence:  confidence,
+	}
 }

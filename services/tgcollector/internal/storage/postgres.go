@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/faringet/telegram-bot-scraper/internal/platform/searchtext"
 )
 
 type Postgres struct {
@@ -41,6 +43,11 @@ func (s *Postgres) SaveHit(ctx context.Context, h Hit) (bool, error) {
 		return false, errors.New("collector postgres storage: message_date is required")
 	}
 
+	searchText, searchTextNormalized := searchtext.Build(h.Channel, h.Keyword, h.Text)
+	if searchText == "" || searchTextNormalized == "" {
+		return false, errors.New("collector postgres storage: search text is empty")
+	}
+
 	res, err := s.db.ExecContext(ctx, `
 INSERT INTO hits (
 	channel,
@@ -49,12 +56,14 @@ INSERT INTO hits (
 	text,
 	link,
 	keyword,
+	search_text,
+	search_text_normalized,
 	created_at,
 	delivered_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, NOW(), NULL)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NULL)
 ON CONFLICT (channel, message_id) DO NOTHING
-`, h.Channel, h.MessageID, h.MessageDate.UTC(), h.Text, h.Link, h.Keyword)
+`, h.Channel, h.MessageID, h.MessageDate.UTC(), h.Text, h.Link, h.Keyword, searchText, searchTextNormalized)
 	if err != nil {
 		return false, fmt.Errorf("collector postgres save hit: %w", err)
 	}
