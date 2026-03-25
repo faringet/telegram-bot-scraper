@@ -105,6 +105,8 @@ func (a *App) Close() error {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	catchUpOnStart := a.cfg.Notifier.Schedule.CatchUpEnabled()
+
 	loc, hour, minute, err := parseNotifierSchedule(
 		a.cfg.Notifier.Schedule.Timezone,
 		a.cfg.Notifier.Schedule.DailyAt,
@@ -118,7 +120,7 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Bool("dry_run", a.cfg.Notifier.DryRun),
 		slog.String("timezone", loc.String()),
 		slog.String("daily_at", a.cfg.Notifier.Schedule.DailyAt),
-		slog.Bool("catch_up_on_start", a.cfg.Notifier.Schedule.CatchUpOnStart),
+		slog.Bool("catch_up_on_start", catchUpOnStart),
 		slog.Int("batch_size", a.cfg.Notifier.BatchSize),
 		slog.Duration("min_delay", a.cfg.Notifier.MinDelay),
 		slog.Int64("supervisor_chat_id", a.cfg.Notifier.SupervisorChatID),
@@ -132,7 +134,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	now := time.Now().In(loc)
-	if a.cfg.Notifier.Schedule.CatchUpOnStart {
+	if catchUpOnStart {
 		cutoff := scheduledTimeForDate(now, hour, minute)
 		if !now.Before(cutoff) {
 			a.runWindow(ctx, "catchup_on_start", cutoff)
