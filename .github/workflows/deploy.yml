@@ -55,7 +55,7 @@ jobs:
             echo "${{ secrets.PROD_GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ secrets.PROD_GHCR_USERNAME }}" --password-stdin
 
             docker compose -f compose.prod.yaml pull migrator tgcollector tgclassifier tgnotifier tgsearchbot
-            docker compose -f compose.prod.yaml run --rm migrator
+            docker compose -f compose.prod.yaml run --rm -T migrator </dev/null
             docker compose -f compose.prod.yaml up -d --force-recreate --remove-orphans tgcollector tgclassifier tgnotifier tgsearchbot
 
             docker compose -f compose.prod.yaml ps
