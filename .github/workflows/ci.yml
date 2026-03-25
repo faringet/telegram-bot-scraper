@@ -74,21 +74,6 @@ jobs:
     name: docker-validate
     runs-on: ubuntu-latest
 
-    env:
-      APP_ENV: ci
-
-      POSTGRES_DB: telegram_scraper
-      POSTGRES_USER: telegram
-      POSTGRES_PASSWORD: ci_dummy_password
-
-      TGC_MTPROTO_API_ID: "12345678"
-      TGC_MTPROTO_API_HASH: ci_dummy_api_hash
-      TGC_MTPROTO_PHONE: "+79990000000"
-      TGC_MTPROTO_PASSWORD: ""
-
-      TG_NOTIFIER_TELEGRAM_BOT_TOKEN: ci_dummy_notifier_token
-      TG_SEARCHBOT_TELEGRAM_BOT_TOKEN: ci_dummy_searchbot_token
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,6 +82,21 @@ jobs:
         run: |
           mkdir -p config
           mkdir -p runtime/tgcollector
+
+      - name: Create dummy .env for compose validation
+        run: |
+          cat > .env <<'EOF'
+          APP_ENV=ci
+          POSTGRES_DB=telegram_scraper
+          POSTGRES_USER=telegram
+          POSTGRES_PASSWORD=ci_dummy_password
+          TGC_MTPROTO_API_ID=12345678
+          TGC_MTPROTO_API_HASH=ci_dummy_api_hash
+          TGC_MTPROTO_PHONE=+79990000000
+          TGC_MTPROTO_PASSWORD=
+          TG_NOTIFIER_TELEGRAM_BOT_TOKEN=ci_dummy_notifier_token
+          TG_SEARCHBOT_TELEGRAM_BOT_TOKEN=ci_dummy_searchbot_token
+          EOF
 
       - name: Validate docker compose config
         run: docker compose config
