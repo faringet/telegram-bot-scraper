@@ -1,12 +1,16 @@
+# IDE
+.idea/
+
+# env
+/.env
+
 # runtime data
-/data/*
-/config/*.yaml
-!/config/.gitkeep
 /runtime/tgcollector/*
 !/runtime/tgcollector/.gitkeep
-!/data/.gitkeep
 
-/.env
+# root config
+/config/*.yaml
+!/config/.gitkeep
 
 # local service configs
 /services/tgcollector/config/config.yaml
@@ -25,4 +29,3 @@
 /cmd/migrator/migrator.yaml
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml
-
