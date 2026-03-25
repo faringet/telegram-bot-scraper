@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-ci:
+    name: go-ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="$(git ls-files '*.go')"
+          if [ -z "${files}" ]; then
+            echo "No Go files found"
+            exit 0
+          fi
+
+          unformatted="$(git ls-files '*.go' | xargs gofmt -l)"
+          if [ -n "${unformatted}" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "${unformatted}"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build migrator
+        run: go build ./cmd/migrator
+
+      - name: Build tgcollector
+        run: go build ./services/tgcollector/cmd/tgcollector
+
+      - name: Build tgclassifier
+        run: go build ./services/tgclassifier/cmd/tgclassifier
+
+      - name: Build tgnotifier
+        run: go build ./services/tgnotifier/cmd/tgnotifier
+
+      - name: Build tgsearchbot
+        run: go build ./services/tgsearchbot/cmd/tgsearchbot
+
+  docker-validate:
+    name: docker-validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare local dirs required by compose
+        run: |
+          mkdir -p config
+          mkdir -p runtime/tgcollector
+
+      - name: Create dummy .env for compose validation
+        run: |
+          cat > .env <<'EOF'
+          APP_ENV=ci
+          POSTGRES_DB=telegram_scraper
+          POSTGRES_USER=telegram
+          POSTGRES_PASSWORD=ci_dummy_password
+          TGC_MTPROTO_API_ID=12345678
+          TGC_MTPROTO_API_HASH=ci_dummy_api_hash
+          TGC_MTPROTO_PHONE=+79990000000
+          TGC_MTPROTO_PASSWORD=
+          TG_NOTIFIER_TELEGRAM_BOT_TOKEN=ci_dummy_notifier_token
+          TG_SEARCHBOT_TELEGRAM_BOT_TOKEN=ci_dummy_searchbot_token
+          EOF
+
+      - name: Validate docker compose config
+        run: docker compose config
