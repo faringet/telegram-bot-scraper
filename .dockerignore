@@ -1,0 +1,14 @@
+.git
+.gitignore
+.idea
+.vscode
+tmp
+bin
+dist
+
+.env
+config/*.yaml
+!config/.gitkeep
+
+runtime/tgcollector/*
+!runtime/tgcollector/.gitkeep

@@ -1,0 +1,156 @@
+name: telegram-bot-scraper
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tbs-postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tbs
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tbs-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - tbs
+
+  migrator:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./cmd/migrator
+    container_name: tbs-migrator
+    restart: "no"
+    env_file:
+      - ./.env
+    environment:
+      MIGRATOR_BASE_ENV: ${APP_ENV}
+      MIGRATOR_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - tbs
+
+  tgcollector:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/tgcollector/cmd/tgcollector
+    container_name: tbs-tgcollector
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      TGC_BASE_ENV: ${APP_ENV}
+      TGC_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      TGC_MTPROTO_API_ID: ${TGC_MTPROTO_API_ID}
+      TGC_MTPROTO_API_HASH: ${TGC_MTPROTO_API_HASH}
+      TGC_MTPROTO_PHONE: ${TGC_MTPROTO_PHONE}
+      TGC_MTPROTO_PASSWORD: ${TGC_MTPROTO_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+      - ./runtime/tgcollector:/app/runtime/tgcollector
+    networks:
+      - tbs
+
+  tgclassifier:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/tgclassifier/cmd/tgclassifier
+    container_name: tbs-tgclassifier
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      TG_CLASSIFIER_BASE_ENV: ${APP_ENV}
+      TG_CLASSIFIER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      TG_CLASSIFIER_OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - tbs
+
+  tgnotifier:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/tgnotifier/cmd/tgnotifier
+    container_name: tbs-tgnotifier
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      TG_NOTIFIER_BASE_ENV: ${APP_ENV}
+      TG_NOTIFIER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      TG_NOTIFIER_TELEGRAM_BOT_TOKEN: ${TG_NOTIFIER_TELEGRAM_BOT_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - tbs
+
+  tgsearchbot:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/tgsearchbot/cmd/tgsearchbot
+    container_name: tbs-tgsearchbot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      TG_SEARCHBOT_BASE_ENV: ${APP_ENV}
+      TG_SEARCHBOT_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      TG_SEARCHBOT_TELEGRAM_BOT_TOKEN: ${TG_SEARCHBOT_TELEGRAM_BOT_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - tbs
+
+networks:
+  tbs:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:
