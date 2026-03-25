@@ -1,0 +1,62 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy (for example: main or sha-abcdef1)"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.PROD_SSH_PORT }}" "${{ secrets.PROD_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to VDS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.PROD_SSH_PORT }}" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" << EOF
+            set -euo pipefail
+
+            cd /opt/telegram-bot-scraper
+
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+
+            export GHCR_OWNER="${{ github.repository_owner }}"
+            export IMAGE_TAG="${{ inputs.image_tag }}"
+
+            echo "${{ secrets.PROD_GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ secrets.PROD_GHCR_USERNAME }}" --password-stdin
+
+            docker compose -f compose.prod.yaml pull
+            docker compose -f compose.prod.yaml run --rm migrator
+            docker compose -f compose.prod.yaml up -d
+
+            docker compose -f compose.prod.yaml ps
+          EOF
