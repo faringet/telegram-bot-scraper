@@ -22,7 +22,7 @@ type TGNotifier struct {
 type Schedule struct {
 	Timezone       string `mapstructure:"timezone"`
 	DailyAt        string `mapstructure:"daily_at"`
-	CatchUpOnStart bool   `mapstructure:"catch_up_on_start"`
+	CatchUpOnStart *bool  `mapstructure:"catch_up_on_start"`
 }
 
 type Notifier struct {
@@ -41,16 +41,17 @@ func (s *Schedule) setDefaults() {
 	if strings.TrimSpace(s.DailyAt) == "" {
 		s.DailyAt = "09:00"
 	}
-
-	// todo фикс этого костыля
-	// По умолчанию будет true
-	// если сервис не сработал в 09:00, а поднялся позже,
-	// он все равно должен догнать и отправить сегодняшнюю пачку.
-	if !s.CatchUpOnStart {
-		// Пока костыль, но тем не менее тут спецом ничего не делаю
-		// непонятно это юзер реально выбрал false
-		// или просто поле не было задано
+	if s.CatchUpOnStart == nil {
+		v := true
+		s.CatchUpOnStart = &v
 	}
+}
+
+func (s Schedule) CatchUpEnabled() bool {
+	if s.CatchUpOnStart == nil {
+		return true
+	}
+	return *s.CatchUpOnStart
 }
 
 func (s *Schedule) Validate() error {
@@ -142,14 +143,6 @@ func (c *TGNotifier) setDefaults() {
 
 	if c.TelegramBot.PollTimeout <= 0 {
 		c.TelegramBot.PollTimeout = 30 * time.Second
-	}
-
-	// todo фикс этого костыля
-	// По умолчанию включаею догонялку
-	// Но тут надо помнить что с обычным bool нельзя нормально отличить
-	// "не задали значение" от "юзер явно поставил false"
-	if !c.Notifier.Schedule.CatchUpOnStart {
-		c.Notifier.Schedule.CatchUpOnStart = true
 	}
 
 	c.Notifier.setDefaults()
