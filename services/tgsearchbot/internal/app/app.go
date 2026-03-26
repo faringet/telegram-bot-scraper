@@ -147,23 +147,28 @@ func (a *App) handleUpdate(ctx context.Context, upd tgbotapi.Update) error {
 		return nil
 	}
 
-	if !msg.IsCommand() {
+	if msg.IsCommand() {
+		switch msg.Command() {
+		case "start":
+			return a.replyStart(ctx, msg.Chat.ID)
+
+		case "help":
+			return a.replyHelp(ctx, msg.Chat.ID)
+
+		case "search":
+			return a.replySearch(ctx, msg.Chat.ID, msg.CommandArguments())
+
+		default:
+			return a.bot.SendHTML(ctx, msg.Chat.ID, bottext.UnknownCommand, true)
+		}
+	}
+
+	text := strings.TrimSpace(msg.Text)
+	if text == "" {
 		return nil
 	}
 
-	switch msg.Command() {
-	case "start":
-		return a.replyStart(ctx, msg.Chat.ID)
-
-	case "help":
-		return a.replyHelp(ctx, msg.Chat.ID)
-
-	case "search":
-		return a.replySearch(ctx, msg.Chat.ID, msg.CommandArguments())
-
-	default:
-		return a.bot.SendHTML(ctx, msg.Chat.ID, bottext.UnknownCommand, true)
-	}
+	return a.replySearch(ctx, msg.Chat.ID, text)
 }
 
 func (a *App) replyStart(ctx context.Context, chatID int64) error {
