@@ -15,8 +15,6 @@ func NewFormatter(maxTextRunes int) *Formatter {
 }
 
 func (f *Formatter) HitMessage(h HitView) string {
-	ch := normalizeChannel(h.Channel)
-
 	kw := strings.TrimSpace(h.Keyword)
 
 	reason := strings.TrimSpace(h.Reason)
@@ -33,7 +31,6 @@ func (f *Formatter) HitMessage(h HitView) string {
 		tag = "#" + cat
 	}
 
-	chEsc := html.EscapeString(ch)
 	kwEsc := html.EscapeString(kw)
 	reasonEsc := html.EscapeString(reason)
 	txtEsc := html.EscapeString(txt)
@@ -43,8 +40,8 @@ func (f *Formatter) HitMessage(h HitView) string {
 	b := &strings.Builder{}
 	fmt.Fprintf(
 		b,
-		"%s\nkeyword: %s\n\n<b>reason: %s</b>\n\n%s\n\n%s",
-		chEsc, kwEsc, reasonEsc, txtEsc, linkEsc,
+		"keyword: %s\n\n%s\n\n<b>reason: %s</b>\n\n%s",
+		kwEsc, txtEsc, reasonEsc, linkEsc,
 	)
 
 	if tagEsc != "" {
@@ -52,17 +49,6 @@ func (f *Formatter) HitMessage(h HitView) string {
 	}
 
 	return b.String()
-}
-
-func normalizeChannel(ch string) string {
-	ch = strings.TrimSpace(ch)
-	if ch == "" {
-		return "@unknown"
-	}
-	if !strings.HasPrefix(ch, "@") {
-		return "@" + ch
-	}
-	return ch
 }
 
 func truncateRunes(s string, max int) string {
