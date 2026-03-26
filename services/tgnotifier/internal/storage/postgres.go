@@ -53,6 +53,7 @@ SELECT
 FROM hits
 WHERE delivered_at IS NULL
   AND category IS NOT NULL
+  AND LOWER(BTRIM(category)) <> 'other'
   AND classified_at IS NOT NULL
   AND classified_at <= $1
 ORDER BY classified_at ASC, message_date ASC, id ASC
