@@ -17,11 +17,13 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	timeout    time.Duration
+	keepAlive  string
 }
 
 type Config struct {
-	BaseURL string
-	Timeout time.Duration
+	BaseURL   string
+	Timeout   time.Duration
+	KeepAlive string
 }
 
 func NewClient(cfg Config) (*Client, error) {
@@ -44,13 +46,14 @@ func NewClient(cfg Config) (*Client, error) {
 		MaxIdleConnsPerHost:   10,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 15 * time.Second,
+		ResponseHeaderTimeout: 0,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	return &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		timeout: cfg.Timeout,
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		timeout:   cfg.Timeout,
+		keepAlive: strings.TrimSpace(cfg.KeepAlive),
 		httpClient: &http.Client{
 			Timeout:   cfg.Timeout,
 			Transport: transport,
@@ -74,9 +77,10 @@ func (c *Client) Classify(ctx context.Context, model string, prompt string) (str
 	}
 
 	reqBody := generateRequest{
-		Model:  model,
-		Prompt: prompt,
-		Stream: false,
+		Model:     model,
+		Prompt:    prompt,
+		Stream:    false,
+		KeepAlive: c.keepAlive,
 		Options: map[string]any{
 			"temperature": 0.2,
 			"top_p":       0.9,
@@ -128,11 +132,78 @@ func (c *Client) Classify(ctx context.Context, model string, prompt string) (str
 	return strings.TrimSpace(out.Response), nil
 }
 
+func (c *Client) Warmup(ctx context.Context, model string) error {
+	if c == nil || c.httpClient == nil {
+		return errors.New("ollama: client is nil")
+	}
+
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return errors.New("ollama: model is required")
+	}
+
+	reqBody := generateRequest{
+		Model:     model,
+		Prompt:    "ping",
+		Stream:    false,
+		KeepAlive: c.keepAlive,
+		Options: map[string]any{
+			"temperature": 0,
+			"num_predict": 1,
+		},
+	}
+
+	b, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("ollama warmup marshal request: %w", err)
+	}
+
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/generate", bytes.NewReader(b))
+	if err != nil {
+		return fmt.Errorf("ollama warmup create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ollama warmup request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := readAllLimit(resp.Body, 4<<20)
+	if err != nil {
+		return fmt.Errorf("ollama warmup read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return parseHTTPError(resp.StatusCode, body)
+	}
+
+	var out generateResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return fmt.Errorf("ollama warmup unmarshal response: %w", err)
+	}
+
+	if strings.TrimSpace(out.Error) != "" {
+		return fmt.Errorf("ollama warmup response error: %s", strings.TrimSpace(out.Error))
+	}
+
+	return nil
+}
+
 type generateRequest struct {
-	Model   string         `json:"model"`
-	Prompt  string         `json:"prompt"`
-	Stream  bool           `json:"stream"`
-	Options map[string]any `json:"options,omitempty"`
+	Model     string         `json:"model"`
+	Prompt    string         `json:"prompt"`
+	Stream    bool           `json:"stream"`
+	KeepAlive string         `json:"keep_alive,omitempty"`
+	Options   map[string]any `json:"options,omitempty"`
 }
 
 type generateResponse struct {

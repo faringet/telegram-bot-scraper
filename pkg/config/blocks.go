@@ -131,9 +131,10 @@ func (p *PostgresStorage) Validate() error {
 }
 
 type Ollama struct {
-	BaseURL string        `mapstructure:"base_url"`
-	Timeout time.Duration `mapstructure:"timeout"`
-	Model   string        `mapstructure:"model"`
+	BaseURL   string        `mapstructure:"base_url"`
+	Timeout   time.Duration `mapstructure:"timeout"`
+	Model     string        `mapstructure:"model"`
+	KeepAlive string        `mapstructure:"keep_alive"`
 }
 
 func (o *Ollama) Validate() error {

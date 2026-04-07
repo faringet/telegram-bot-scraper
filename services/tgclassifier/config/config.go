@@ -18,19 +18,32 @@ type TGClassifier struct {
 }
 
 type Classifier struct {
-	Interval        time.Duration `mapstructure:"interval"`
-	BatchSize       int           `mapstructure:"batch_size"`
-	Lease           time.Duration `mapstructure:"lease"`
-	WorkerID        string        `mapstructure:"worker_id"`
-	MaxTextRunes    int           `mapstructure:"max_text_runes"`
-	MaxRetries      int           `mapstructure:"max_retries"`
-	RetryBackoff    time.Duration `mapstructure:"retry_backoff"`
-	OnlyUndelivered bool          `mapstructure:"only_undelivered"`
-	WhitelistPath   string        `mapstructure:"whitelist_path"`
-	PromptPath      string        `mapstructure:"prompt_path"`
+	Mode            string             `mapstructure:"mode"`
+	Interval        time.Duration      `mapstructure:"interval"`
+	BatchSize       int                `mapstructure:"batch_size"`
+	Lease           time.Duration      `mapstructure:"lease"`
+	WorkerID        string             `mapstructure:"worker_id"`
+	MaxTextRunes    int                `mapstructure:"max_text_runes"`
+	MaxRetries      int                `mapstructure:"max_retries"`
+	RetryBackoff    time.Duration      `mapstructure:"retry_backoff"`
+	OnlyUndelivered bool               `mapstructure:"only_undelivered"`
+	WhitelistPath   string             `mapstructure:"whitelist_path"`
+	PromptPath      string             `mapstructure:"prompt_path"`
+	Schedule        ClassifierSchedule `mapstructure:"schedule"`
+}
+
+type ClassifierSchedule struct {
+	Timezone        string        `mapstructure:"timezone"`
+	RunTimes        []string      `mapstructure:"run_times"`
+	MaxRunDuration  time.Duration `mapstructure:"max_run_duration"`
+	PollInterval    time.Duration `mapstructure:"poll_interval"`
+	WarmupBeforeRun bool          `mapstructure:"warmup_before_run"`
 }
 
 func (c *Classifier) setDefaults() {
+	if c.Mode == "" {
+		c.Mode = "interval"
+	}
 	if c.Interval <= 0 {
 		c.Interval = 5 * time.Second
 	}
@@ -49,15 +62,33 @@ func (c *Classifier) setDefaults() {
 	if c.RetryBackoff <= 0 {
 		c.RetryBackoff = 750 * time.Millisecond
 	}
+
+	c.Schedule.setDefaults()
+}
+
+func (s *ClassifierSchedule) setDefaults() {
+	if s.Timezone == "" {
+		s.Timezone = "Europe/Moscow"
+	}
+	if s.MaxRunDuration <= 0 {
+		s.MaxRunDuration = 3 * time.Hour
+	}
+	if s.PollInterval <= 0 {
+		s.PollInterval = 15 * time.Second
+	}
 }
 
 func (c *Classifier) Validate() error {
 	if c == nil {
 		return fmt.Errorf("classifier config is nil")
 	}
-	if c.Interval <= 0 {
-		return fmt.Errorf("classifier.interval must be > 0")
+
+	switch c.Mode {
+	case "interval", "schedule":
+	default:
+		return fmt.Errorf("classifier.mode must be one of [interval, schedule], got %q", c.Mode)
 	}
+
 	if c.BatchSize <= 0 {
 		return fmt.Errorf("classifier.batch_size must be > 0")
 	}
@@ -72,6 +103,44 @@ func (c *Classifier) Validate() error {
 	}
 	if c.RetryBackoff < 0 {
 		return fmt.Errorf("classifier.retry_backoff must be >= 0")
+	}
+
+	if c.Mode == "interval" && c.Interval <= 0 {
+		return fmt.Errorf("classifier.interval must be > 0 in interval mode")
+	}
+
+	if c.Mode == "schedule" {
+		if err := c.Schedule.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *ClassifierSchedule) Validate() error {
+	if s == nil {
+		return fmt.Errorf("classifier.schedule config is nil")
+	}
+	if s.Timezone == "" {
+		return fmt.Errorf("classifier.schedule.timezone is required")
+	}
+	if _, err := time.LoadLocation(s.Timezone); err != nil {
+		return fmt.Errorf("classifier.schedule.timezone is invalid: %w", err)
+	}
+	if len(s.RunTimes) == 0 {
+		return fmt.Errorf("classifier.schedule.run_times must not be empty")
+	}
+	for _, rt := range s.RunTimes {
+		if _, err := time.Parse("15:04", rt); err != nil {
+			return fmt.Errorf("classifier.schedule.run_times value %q must be HH:MM: %w", rt, err)
+		}
+	}
+	if s.MaxRunDuration <= 0 {
+		return fmt.Errorf("classifier.schedule.max_run_duration must be > 0")
+	}
+	if s.PollInterval <= 0 {
+		return fmt.Errorf("classifier.schedule.poll_interval must be > 0")
 	}
 	return nil
 }
@@ -116,6 +185,12 @@ func (c *TGClassifier) setDefaults() {
 	}
 	if c.Ollama.Model == "" {
 		c.Ollama.Model = "qwen2.5:7b"
+	}
+	if c.Ollama.KeepAlive == "" {
+		c.Ollama.KeepAlive = "2h"
+	}
+	if c.Ollama.Timeout <= 0 {
+		c.Ollama.Timeout = 180 * time.Second
 	}
 
 	c.Classifier.setDefaults()
