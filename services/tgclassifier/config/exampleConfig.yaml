@@ -21,10 +21,14 @@ ollama:
   base_url: http://127.0.0.1:11434
   timeout: 60s
   model: qwen2.5:7b
+  keep_alive: 2h
 
 classifier:
-  # Как часто worker просыпается и пытается забрать новую пачку работы
-  interval: 5s
+  # Режим работы classifier: interval — старый периодический цикл, schedule — запуск по расписанию
+  mode: schedule
+
+  # Как часто worker просыпается и пытается забрать новую пачку работы.
+  interval: 1m
 
   # Максимальное число hit'ов, которые worker забирает за один claim
   batch_size: 20
@@ -52,3 +56,11 @@ classifier:
 
   # Путь к внешнему prompt template
   prompt_path: ""
+
+  schedule:
+    timezone: "Europe/Moscow" # Часовой пояс, в котором интерпретируются run_times
+    run_times:
+      - "04:00" # Основной ночной прогон: разбирает пачку новостей, накопившуюся за ночь
+      - "10:00" # Второй прогон: добирает хвосты и утренние новости перед рассылкой
+    max_run_duration: 3h # Максимальная длительность одного scheduled run; после этого окно принудительно завершается
+    warmup_before_run: true # Перед началом окна сделать прогрев модели, чтобы первый боевой запрос не упирался в cold start
