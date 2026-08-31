@@ -20,8 +20,9 @@ storage:
 ollama:
   base_url: http://127.0.0.1:11434
   timeout: 60s
-  model: qwen2.5:7b
+  model: qwen3.5:9b
   keep_alive: 2h
+  think: false
 
 classifier:
   # Режим работы classifier: interval — старый периодический цикл, schedule — запуск по расписанию

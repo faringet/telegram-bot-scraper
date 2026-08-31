@@ -18,12 +18,14 @@ type Client struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	keepAlive  string
+	think      bool
 }
 
 type Config struct {
 	BaseURL   string
 	Timeout   time.Duration
 	KeepAlive string
+	Think     bool
 }
 
 func NewClient(cfg Config) (*Client, error) {
@@ -54,6 +56,7 @@ func NewClient(cfg Config) (*Client, error) {
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		timeout:   cfg.Timeout,
 		keepAlive: strings.TrimSpace(cfg.KeepAlive),
+		think:     cfg.Think,
 		httpClient: &http.Client{
 			Timeout:   cfg.Timeout,
 			Transport: transport,
@@ -80,6 +83,7 @@ func (c *Client) Classify(ctx context.Context, model string, prompt string) (str
 		Model:     model,
 		Prompt:    prompt,
 		Stream:    false,
+		Think:     c.think,
 		KeepAlive: c.keepAlive,
 		Options: map[string]any{
 			"temperature": 0.2,
@@ -146,6 +150,7 @@ func (c *Client) Warmup(ctx context.Context, model string) error {
 		Model:     model,
 		Prompt:    "ping",
 		Stream:    false,
+		Think:     c.think,
 		KeepAlive: c.keepAlive,
 		Options: map[string]any{
 			"temperature": 0,
@@ -202,6 +207,7 @@ type generateRequest struct {
 	Model     string         `json:"model"`
 	Prompt    string         `json:"prompt"`
 	Stream    bool           `json:"stream"`
+	Think     bool           `json:"think"`
 	KeepAlive string         `json:"keep_alive,omitempty"`
 	Options   map[string]any `json:"options,omitempty"`
 }
