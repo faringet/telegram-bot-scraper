@@ -45,6 +45,7 @@ func New(cfg *tgcfg.TGClassifier, log *slog.Logger) (*App, error) {
 		BaseURL:   cfg.Ollama.BaseURL,
 		Timeout:   cfg.Ollama.Timeout,
 		KeepAlive: cfg.Ollama.KeepAlive,
+		Think:     cfg.Ollama.Think,
 	})
 	if err != nil {
 		_ = st.Close()

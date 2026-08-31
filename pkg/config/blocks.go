@@ -135,6 +135,7 @@ type Ollama struct {
 	Timeout   time.Duration `mapstructure:"timeout"`
 	Model     string        `mapstructure:"model"`
 	KeepAlive string        `mapstructure:"keep_alive"`
+	Think     bool          `mapstructure:"think"`
 }
 
 func (o *Ollama) Validate() error {
